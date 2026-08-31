@@ -5,3 +5,7 @@ pandas
 pybaseball
 beautifulsoup4
 lxml
+joblib
+scikit-learn
+numpy
+lightgbm
