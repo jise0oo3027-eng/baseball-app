@@ -42,11 +42,12 @@
       width: 240px;
       height: 320px;
       border: 4px solid black;
-      margin: 20px auto;
+      margin: 20px auto 0 auto;
       background-color: #f8f9fa;
       box-sizing: border-box;
     }
     
+    /* 중앙 십자선 (전체 관통) */
     .zone-wrapper::before {
       content: '';
       position: absolute;
@@ -64,22 +65,25 @@
       z-index: 1;
     }
 
+    /* 바깥쪽 Chase 존 (모서리 배치) */
     .chase-zone {
       position: absolute;
       width: 50%; height: 50%;
       display: flex;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: bold;
-      color: #555;
+      color: #333;
       box-sizing: border-box;
-      padding: 6px;
+      padding: 8px;
       z-index: 2;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
     #CHASE_UL { top: 0; left: 0; align-items: flex-start; justify-content: flex-start; }
     #CHASE_UR { top: 0; right: 0; align-items: flex-start; justify-content: flex-end; }
     #CHASE_LL { bottom: 0; left: 0; align-items: flex-end; justify-content: flex-start; }
     #CHASE_LR { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
 
+    /* 안쪽 Strike 존 (중앙 배치) */
     .strike-box {
       position: absolute;
       top: 20%; left: 20%;
@@ -95,17 +99,32 @@
       align-items: center;
       justify-content: center;
       font-weight: bold;
-      font-size: 15px;
+      font-size: 16px;
       color: #000;
       box-sizing: border-box;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
     #SZ_UL { top: 0; left: 0; }
     #SZ_UR { top: 0; right: 0; }
     #SZ_LL { bottom: 0; left: 0; }
     #SZ_LR { bottom: 0; right: 0; }
 
-    /* ---------------- 📊 게이지 바 스타일 ---------------- */
-    .results { background: #e9ecef; padding: 15px; border-radius: 8px; margin-top: 20px; }
+    /* ⚾ 하단 홈플레이트 스타일 */
+    .home-plate-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 6px;
+      filter: drop-shadow(0px 0px 1px #000) drop-shadow(0px 1px 1px #000);
+    }
+    .home-plate {
+      width: 140px;
+      height: 38px;
+      background-color: #ffffff;
+      clip-path: polygon(0% 0%, 100% 0%, 100% 35%, 50% 100%, 0% 35%);
+    }
+
+    /* ---------------- 📊 구종 예측 게이지 바 스타일 ---------------- */
+    .results { background: #e9ecef; padding: 15px; border-radius: 8px; margin-top: 25px; }
     
     .pitch-item {
       display: flex;
@@ -177,6 +196,7 @@
         <option value="SI">싱커 (SI)</option>
         <option value="ST">스위퍼 (ST)</option>
         <option value="FS">스플리터 (FS)</option>
+        <option value="FIRST_PITCH">없음 (초구)</option>
       </select>
     </div>
     <div class="form-row">
@@ -189,25 +209,34 @@
         <option value="SI">싱커 (SI)</option>
         <option value="ST">스위퍼 (ST)</option>
         <option value="FS">스플리터 (FS)</option>
+        <option value="FIRST_PITCH">없음 (1~2구째)</option>
       </select>
     </div>
     <button onclick="getPrediction()">예측하기</button>
   </div>
 
-  <!-- 스트라이크존 영역 -->
+  <!-- 스트라이크존 및 홈플레이트 시각화 영역 -->
   <h3 style="text-align: center;">🎯 코스 예상 확률</h3>
+  
   <div class="zone-wrapper">
+    <!-- Chase Zones (4개) -->
     <div id="CHASE_UL" class="chase-zone">0%</div>
     <div id="CHASE_UR" class="chase-zone">0%</div>
     <div id="CHASE_LL" class="chase-zone">0%</div>
     <div id="CHASE_LR" class="chase-zone">0%</div>
     
+    <!-- Strike Zones (4개) -->
     <div class="strike-box">
       <div id="SZ_UL" class="strike-zone">0%</div>
       <div id="SZ_UR" class="strike-zone">0%</div>
       <div id="SZ_LL" class="strike-zone">0%</div>
       <div id="SZ_LR" class="strike-zone">0%</div>
     </div>
+  </div>
+
+  <!-- 하단 홈플레이트 -->
+  <div class="home-plate-container">
+    <div class="home-plate"></div>
   </div>
 
   <!-- 구종 예측 결과 영역 -->
@@ -217,6 +246,7 @@
     <p style="margin-top: 15px; font-size: 12px; color: #666;" id="accuracy-info"></p>
   </div>
 
+  <!-- JavaScript 연동 -->
   <script>
     async function getPrediction() {
       const payload = {
@@ -239,7 +269,7 @@
         const result = await response.json();
 
         if (result.status === 'success') {
-          // 1. 코스 확률 렌더링 & 히트맵 배경색
+          // 1. 코스 확률 렌더링 & 히트맵 색상/가독성 가공
           const zones = result.zones;
           const maxProb = Math.max(...Object.values(zones));
 
@@ -248,10 +278,18 @@
             if (el) {
               el.innerText = `${prob}%`;
               if (prob > 0 && maxProb > 0) {
-                const alpha = (prob / maxProb) * 0.75;
-                el.style.backgroundColor = `rgba(255, 77, 77, ${alpha})`;
+                const alpha = (prob / maxProb) * 0.85;
+                el.style.backgroundColor = `rgba(255, 69, 58, ${alpha})`;
+                
+                // 히트맵 배경이 진해지면 글씨를 흰색으로 변경하여 가독성 확보
+                if (alpha > 0.45) {
+                  el.style.color = '#ffffff';
+                } else {
+                  el.style.color = '#000000';
+                }
               } else {
                 el.style.backgroundColor = 'transparent';
+                el.style.color = '#000000';
               }
             }
           }
@@ -264,7 +302,6 @@
             const item = document.createElement('div');
             item.className = 'pitch-item';
             
-            // 게이지바 HTML 구조 생성
             item.innerHTML = `
               <span class="pitch-name">${p.pitch}</span>
               <div class="gauge-bg">
