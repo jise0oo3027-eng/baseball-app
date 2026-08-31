@@ -1,270 +1,155 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>투수 구종 및 코스 예측 시스템</title>
-  <style>
-    body {
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-      max-width: 600px;
-      margin: 20px auto;
-      padding: 0 15px;
-      color: #333;
-    }
+    <meta charset="UTF-8">
+    <title>MLB Pitch Prediction System</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #1a73e8; margin-bottom: 20px; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        button { grid-column: span 2; padding: 12px; background-color: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { background-color: #1557b0; }
+        
+        .result-section { margin-top: 30px; border-top: 2px solid #eee; padding-top: 20px; }
+        .accuracy-box { background: #e8f0fe; padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; color: #174ea6; margin-bottom: 20px; }
+        
+        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: #fafafa; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .card h3 { margin-top: 0; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 8px; }
+        
+        /* 구종 확률 바 스타일 */
+        .pitch-bar-container { margin-bottom: 8px; }
+        .pitch-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 2px; }
+        .bar-bg { background: #e0e0e0; border-radius: 4px; height: 10px; width: 100%; overflow: hidden; }
+        .bar-fill { background: #1a73e8; height: 100%; width: 0%; transition: width 0.4s ease; }
 
-    h1 { text-align: center; font-size: 22px; }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      background: #f1f3f5;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-
-    .form-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    label { font-weight: bold; font-size: 14px; }
-    input, select, button { padding: 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ccc; }
-    button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; }
-    button:hover { background-color: #0056b3; }
-
-    /* 주자 체크박스 그룹 스타일 */
-    .checkbox-group {
-      display: flex;
-      gap: 15px;
-      font-size: 14px;
-      font-weight: bold;
-    }
-    .checkbox-group label {
-      font-weight: normal;
-      cursor: pointer;
-    }
-
-    /* ---------------- 🎯 8분할 스트라이크 존 스타일 ---------------- */
-    .zone-wrapper {
-      position: relative;
-      width: 240px;
-      height: 320px;
-      border: 4px solid black;
-      margin: 20px auto 0 auto;
-      background-color: #f8f9fa;
-      box-sizing: border-box;
-    }
-    
-    .zone-wrapper::before {
-      content: '';
-      position: absolute;
-      top: 0; bottom: 0; left: 50%;
-      border-left: 2px solid black;
-      transform: translateX(-50%);
-      z-index: 1;
-    }
-    .zone-wrapper::after {
-      content: '';
-      position: absolute;
-      top: 50%; left: 0; right: 0;
-      border-top: 2px solid black;
-      transform: translateY(-50%);
-      z-index: 1;
-    }
-
-    .chase-zone {
-      position: absolute;
-      width: 50%; height: 50%;
-      display: flex;
-      font-size: 13px;
-      font-weight: bold;
-      color: #333;
-      box-sizing: border-box;
-      padding: 8px;
-      z-index: 2;
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-    #CHASE_UL { top: 0; left: 0; align-items: flex-start; justify-content: flex-start; }
-    #CHASE_UR { top: 0; right: 0; align-items: flex-start; justify-content: flex-end; }
-    #CHASE_LL { bottom: 0; left: 0; align-items: flex-end; justify-content: flex-start; }
-    #CHASE_LR { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
-
-    .strike-box {
-      position: absolute;
-      top: 20%; left: 20%;
-      width: 60%; height: 60%;
-      border: 4px solid black;
-      z-index: 3;
-      box-sizing: border-box;
-    }
-    .strike-zone {
-      position: absolute;
-      width: 50%; height: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      font-size: 16px;
-      color: #000;
-      box-sizing: border-box;
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-    #SZ_UL { top: 0; left: 0; }
-    #SZ_UR { top: 0; right: 0; }
-    #SZ_LL { bottom: 0; left: 0; }
-    #SZ_LR { bottom: 0; right: 0; }
-
-    .home-plate-container {
-      display: flex;
-      justify-content: center;
-      margin-top: 6px;
-      filter: drop-shadow(0px 0px 1px #000) drop-shadow(0px 1px 1px #000);
-    }
-    .home-plate {
-      width: 140px;
-      height: 38px;
-      background-color: #ffffff;
-      clip-path: polygon(0% 0%, 100% 0%, 100% 35%, 50% 100%, 0% 35%);
-    }
-
-    .results { background: #e9ecef; padding: 15px; border-radius: 8px; margin-top: 25px; }
-    
-    .pitch-item {
-      display: flex;
-      align-items: center;
-      margin-bottom: 8px;
-      font-size: 14px;
-    }
-    .pitch-name {
-      width: 45px;
-      font-weight: bold;
-    }
-    .gauge-bg {
-      flex-grow: 1;
-      height: 14px;
-      background-color: #dee2e6;
-      border-radius: 7px;
-      margin: 0 10px;
-      overflow: hidden;
-    }
-    .gauge-fill {
-      height: 100%;
-      background-color: #007bff;
-      border-radius: 7px;
-      transition: width 0.4s ease-in-out;
-    }
-    .pitch-prob {
-      width: 50px;
-      text-align: right;
-      font-weight: bold;
-    }
-  </style>
+        /* 스트라이크존 그리드 스타일 */
+        .zone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
+        .zone-box { background: #fff; border: 1px solid #ccc; padding: 10px; text-align: center; border-radius: 6px; font-size: 13px; }
+        .zone-box span { display: block; font-weight: bold; color: #d93025; margin-top: 4px; }
+    </style>
 </head>
 <body>
 
-  <h1>⚾ 투수 구종 및 코스 예측 시스템</h1>
-
-  <!-- 입력 폼 -->
-  <div class="form-group">
-    <div class="form-row">
-      <label for="pitcher_id">선수 ID (MLB):</label>
-      <input type="text" id="pitcher_id" value="694973" placeholder="예: 694973">
-    </div>
-    <div class="form-row">
-      <label for="stand">타자 석:</label>
-      <select id="stand">
-        <option value="R">우타자 (R)</option>
-        <option value="L">좌타자 (L)</option>
-      </select>
-    </div>
-    <div class="form-row">
-      <label for="balls">볼 Count:</label>
-      <input type="number" id="balls" value="1" min="0" max="3">
-    </div>
-    <div class="form-row">
-      <label for="strikes">스트라이크 Count:</label>
-      <input type="number" id="strikes" value="2" min="0" max="2">
-    </div>
-    <div class="form-row">
-      <label for="at_bat_pitch_number">타석 내 투구 수:</label>
-      <input type="number" id="at_bat_pitch_number" value="3" min="1" max="10">
-    </div>
-    <div class="form-row">
-      <label>주자 상황:</label>
-      <div class="checkbox-group">
-        <label><input type="checkbox" id="on_1b"> 1루</label>
-        <label><input type="checkbox" id="on_2b"> 2루</label>
-        <label><input type="checkbox" id="on_3b"> 3루</label>
-      </div>
-    </div>
-    <div class="form-row">
-      <label for="prev1_pitch">직전 1구 (Prev1):</label>
-      <select id="prev1_pitch">
-        <option value="FF">포심 (FF)</option>
-        <option value="SL">슬라이더 (SL)</option>
-        <option value="CH">체인지업 (CH)</option>
-        <option value="CU">커브 (CU)</option>
-        <option value="SI">싱커 (SI)</option>
-        <option value="ST">스위퍼 (ST)</option>
-        <option value="FS">스플리터 (FS)</option>
-        <option value="FIRST">없음 (초구)</option>
-      </select>
-    </div>
-    <div class="form-row">
-      <label for="prev2_pitch">직전 2구 (Prev2):</label>
-      <select id="prev2_pitch">
-        <option value="SL">슬라이더 (SL)</option>
-        <option value="FF">포심 (FF)</option>
-        <option value="CH">체인지업 (CH)</option>
-        <option value="CU">커브 (CU)</option>
-        <option value="SI">싱커 (SI)</option>
-        <option value="ST">스위퍼 (ST)</option>
-        <option value="FS">스플리터 (FS)</option>
-        <option value="FIRST">없음 (1~2구째)</option>
-      </select>
-    </div>
-    <button onclick="getPrediction()">예측하기</button>
-  </div>
-
-  <!-- 스트라이크존 및 홈플레이트 시각화 영역 -->
-  <h3 style="text-align: center;">🎯 코스 예상 확률</h3>
-  
-  <div class="zone-wrapper">
-    <!-- Chase Zones (4개) -->
-    <div id="CHASE_UL" class="chase-zone">0%</div>
-    <div id="CHASE_UR" class="chase-zone">0%</div>
-    <div id="CHASE_LL" class="chase-zone">0%</div>
-    <div id="CHASE_LR" class="chase-zone">0%</div>
+<div class="container">
+    <h1>MLB Pitch & Zone Predictor</h1>
     
-    <!-- Strike Zones (4개) -->
-    <div class="strike-box">
-      <div id="SZ_UL" class="strike-zone">0%</div>
-      <div id="SZ_UR" class="strike-zone">0%</div>
-      <div id="SZ_LL" class="strike-zone">0%</div>
-      <div id="SZ_LR" class="strike-zone">0%</div>
+    <div class="form-grid">
+        <div class="form-group">
+            <label for="pitcher_id">투수 MLBAM ID</label>
+            <input type="text" id="pitcher_id" value="694973" placeholder="예: 694973 (폴 스킨스)">
+        </div>
+        <div class="form-group">
+            <label for="stand">타자 타석 (Stand)</label>
+            <select id="stand">
+                <option value="R">우타자 (R)</option>
+                <option value="L">좌타자 (L)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="balls">볼 카운트 (Balls)</label>
+            <select id="balls">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="strikes">스트라이크 카운트 (Strikes)</label>
+            <select id="strikes">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="at_bat_pitch_number">타석 내 투구 수 (Pitch Number)</label>
+            <input type="number" id="at_bat_pitch_number" value="1" min="1" max="20">
+        </div>
+        <div class="form-group">
+            <label>주자 상황</label>
+            <div style="display: flex; gap: 10px; padding-top: 6px;">
+                <label><input type="checkbox" id="on_1b"> 1루</label>
+                <label><input type="checkbox" id="on_2b"> 2루</label>
+                <label><input type="checkbox" id="on_3b"> 3루</label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="prev1_pitch">직전 구종 (Prev 1)</label>
+            <select id="prev1_pitch">
+                <option value="FIRST">첫 투구 (FIRST)</option>
+                <option value="FF">포심 (FF)</option>
+                <option value="SL">슬라이더/스위퍼 (SL)</option>
+                <option value="FC">커터 (FC)</option>
+                <option value="CH">체인지업 (CH)</option>
+                <option value="CU">커브 (CU)</option>
+                <option value="SI">싱커 (SI)</option>
+                <option value="FS">스플리터 (FS)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="prev2_pitch">2구 전 구종 (Prev 2)</label>
+            <select id="prev2_pitch">
+                <option value="FIRST">해당 없음 (FIRST)</option>
+                <option value="FF">포심 (FF)</option>
+                <option value="SL">슬라이더/스위퍼 (SL)</option>
+                <option value="FC">커터 (FC)</option>
+                <option value="CH">체인지업 (CH)</option>
+                <option value="CU">커브 (CU)</option>
+                <option value="SI">싱커 (SI)</option>
+                <option value="FS">스플리터 (FS)</option>
+            </select>
+        </div>
+        <button onclick="getPrediction()">다음 구종 및 코스 예측하기</button>
     </div>
-  </div>
 
-  <!-- 하단 홈플레이트 -->
-  <div class="home-plate-container">
-    <div class="home-plate"></div>
-  </div>
+    <div class="result-section" id="result-section" style="display: none;">
+        <div class="accuracy-box" id="accuracy-info">
+            <!-- 모델 정확도 및 Top-2, Baseline 표시 영역 -->
+        </div>
 
-  <!-- 구종 예측 결과 영역 -->
-  <div class="results">
-    <h3>📊 구종 예측 확률</h3>
-    <div id="pitch-predictions">예측 버튼을 눌러주세요.</div>
-    <p style="margin-top: 15px; font-size: 12px; color: #666;" id="accuracy-info"></p>
-  </div>
+        <div class="results-grid">
+            <div class="card">
+                <h3>구종별 예측 확률</h3>
+                <div id="pitch-results"></div>
+            </div>
+            <div class="card">
+                <h3>투구 코스(Zone) 예측 확률</h3>
+                <div class="zone-grid" id="zone-results">
+                    <!-- 동적 존 바인딩 -->
+                    <div class="zone-box">상단 좌측 (SZ_UL)<span id="zone-SZ_UL">0.0%</span></div>
+                    <div class="zone-box">상단 우측 (SZ_UR)<span id="zone-SZ_UR">0.0%</span></div>
+                    <div class="zone-box">하단 좌측 (SZ_LL)<span id="zone-SZ_LL">0.0%</span></div>
+                    <div class="zone-box">하단 우측 (SZ_LR)<span id="zone-SZ_LR">0.0%</span></div>
+                    <div class="zone-box">체이스 상단 좌측 (CHASE_UL)<span id="zone-CHASE_UL">0.0%</span></div>
+                    <div class="zone-box">체이스 상단 우측 (CHASE_UR)<span id="zone-CHASE_UR">0.0%</span></div>
+                    <div class="zone-box">체이스 하단 좌측 (CHASE_LL)<span id="zone-CHASE_LL">0.0%</span></div>
+                    <div class="zone-box">체이스 하단 우측 (CHASE_LR)<span id="zone-CHASE_LR">0.0%</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-  <!-- JavaScript 연동 -->
-  <script>
-    async function getPrediction() {
-      const payload = {
+<script>
+// 구종 코드 한글 매핑 (ST 제거, FC 추가)
+const pitchNames = {
+    'FF': '포심 패스트볼 (FF)',
+    'SL': '슬라이더/스위퍼 (SL)',
+    'FC': '커터 (FC)',
+    'CH': '체인지업 (CH)',
+    'CU': '커브 (CU)',
+    'SI': '싱커 (SI)',
+    'FS': '스플리터 (FS)'
+};
+
+async function getPrediction() {
+    const data = {
         pitcher_id: document.getElementById('pitcher_id').value,
         stand: document.getElementById('stand').value,
         balls: parseInt(document.getElementById('balls').value),
@@ -275,72 +160,60 @@
         on_3b: document.getElementById('on_3b').checked ? 1 : 0,
         prev1_pitch: document.getElementById('prev1_pitch').value,
         prev2_pitch: document.getElementById('prev2_pitch').value
-      };
+    };
 
-      try {
+    try {
         const response = await fetch('/predict', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
         });
         
         const result = await response.json();
-
-        if (result.status === 'success') {
-          // 1. 코스 확률 렌더링 & 히트맵 색상 가공
-          const zones = result.zones;
-          const maxProb = Math.max(...Object.values(zones));
-
-          for (const [zoneId, prob] of Object.entries(zones)) {
-            const el = document.getElementById(zoneId);
-            if (el) {
-              el.innerText = `${prob}%`;
-              if (prob > 0 && maxProb > 0) {
-                const alpha = (prob / maxProb) * 0.85;
-                el.style.backgroundColor = `rgba(255, 69, 58, ${alpha})`;
-                
-                if (alpha > 0.45) {
-                  el.style.color = '#ffffff';
-                } else {
-                  el.style.color = '#000000';
-                }
-              } else {
-                el.style.backgroundColor = 'transparent';
-                el.style.color = '#000000';
-              }
-            }
-          }
-
-          // 2. 구종 목록 + 게이지 바 렌더링
-          const predictionsDiv = document.getElementById('pitch-predictions');
-          predictionsDiv.innerHTML = '';
-          
-          result.predictions.forEach(p => {
-            const item = document.createElement('div');
-            item.className = 'pitch-item';
-            
-            item.innerHTML = `
-              <span class="pitch-name">${p.pitch}</span>
-              <div class="gauge-bg">
-                <div class="gauge-fill" style="width: ${p.prob}%;"></div>
-              </div>
-              <span class="pitch-prob">${p.prob}%</span>
-            `;
-            predictionsDiv.appendChild(item);
-          });
-
-          // 3. 정확도 정보 출력 (구종 정확도, 코스 정확도, 베이스라인 포함)
-          document.getElementById('accuracy-info').innerText = 
-            `구종 모델 정확도: ${result.accuracy}% | 코스 모델 정확도: ${result.zone_accuracy}% (기존 베이스라인: ${result.baseline_acc}%)`;
-
-        } else {
-          alert('오류: ' + result.message);
+        
+        if (result.status === 'error') {
+            alert(result.message);
+            return;
         }
-      } catch (error) {
-        console.error('API 통신 에러:', error);
-        alert('예측 서버와 통신 중 에러가 발생했습니다.');
-      }
+
+        document.getElementById('result-section').style.display = 'block';
+
+        // 정확도 정보 출력 (Top-2 Accuracy 포함)
+        document.getElementById('accuracy-info').innerText = 
+            `구종 정확도: ${result.accuracy}% (Top-2: ${result.top2_accuracy}%) | 코스 정확도: ${result.zone_accuracy}% (기준 베이스라인: ${result.baseline_acc}%)`;
+
+        // 구종 확률 바 렌더링
+        const pitchContainer = document.getElementById('pitch-results');
+        pitchContainer.innerHTML = '';
+        result.predictions.forEach(p => {
+            const fullName = pitchNames[p.pitch] || p.pitch;
+            pitchContainer.innerHTML += `
+                <div class="pitch-bar-container">
+                    <div class="pitch-label">
+                        <span>${fullName}</span>
+                        <span>${p.prob}%</span>
+                    </div>
+                    <div class="bar-bg">
+                        <div class="bar-fill" style="width: ${p.prob}%;"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        // 존 확률 렌더링
+        for (const [zoneKey, prob] of Object.entries(result.zones)) {
+            const span = document.getElementById(`zone-${zoneKey}`);
+            if (span) {
+                span.innerText = `${prob}%`;
+            }
+        }
+
+    } catch (err) {
+        alert('서버 통신 중 오류가 발생했습니다.');
+        console.error(err);
     }
-  </script>
+}
+</script>
+
 </body>
 </html>
