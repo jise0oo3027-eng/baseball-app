@@ -1,208 +1,101 @@
 import os
+import glob
 import joblib
-import pandas as pd
 import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify
 from pybaseball import statcast_pitcher
-from sklearn.preprocessing import LabelEncoder
-import lightgbm as lgb
-import warnings
-warnings.filterwarnings('ignore')
+from sklearn.ensemble import RandomForestClassifier
 
 app = Flask(__name__)
 
-MODEL_DIR = './models'
+# 모델 저장 디렉터리 생성
+MODEL_DIR = 'models'
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-MAIN_PITCHES = ['FF', 'FS', 'ST', 'CH', 'CU', 'SI', 'SL']
-SEQ_LEN = 5
+# 8분할 코스 범주화 함수
+def categorize_zone(row):
+    px, pz = row['plate_x'], row['plate_z']
+    sz_top, sz_bot = row['sz_top'], row['sz_bot']
+    sz_mid = (sz_top + sz_bot) / 2
 
-# 8분할 존(Strike Zone 4개 + Chase Zone 4개) 분류 함수
-def assign_zone_8(px, pz):
-    in_x = (-0.83 <= px <= 0.83)
-    in_z = (1.5 <= pz <= 3.5)
-    
-    if in_x and in_z:
-        if px <= 0 and pz >= 2.5: return 'SZ_UL'
-        elif px > 0 and pz >= 2.5: return 'SZ_UR'
-        elif px <= 0 and pz < 2.5: return 'SZ_LL'
-        else: return 'SZ_LR'
+    if pd.isna(px) or pd.isna(pz) or pd.isna(sz_top) or pd.isna(sz_bot):
+        return None
+
+    # 스트라이크존 안쪽 (SZ)
+    if -0.83 <= px <= 0.83 and sz_bot <= pz <= sz_top:
+        if px <= 0:
+            return 'SZ_UL' if pz >= sz_mid else 'SZ_LL'
+        else:
+            return 'SZ_UR' if pz >= sz_mid else 'SZ_LR'
+    # 스트라이크존 바깥쪽 (CHASE)
     else:
-        if px <= 0 and pz >= 2.5: return 'CHASE_UL'
-        elif px > 0 and pz >= 2.5: return 'CHASE_UR'
-        elif px <= 0 and pz < 2.5: return 'CHASE_LL'
-        else: return 'CHASE_LR'
-
-def create_sequence_features(group, seq_len=5):
-    group = group.sort_values('pitch_number').reset_index(drop=True)
-    rows = []
-
-    for i in range(len(group)):
-        current = group.iloc[i]
-        balls = current['balls']
-        strikes = current['strikes']
-        pitch_num = current['pitch_number']
-
-        px = current['plate_x'] if pd.notna(current['plate_x']) else 0.0
-        pz = current['plate_z'] if pd.notna(current['plate_z']) else 2.5
-
-        row = {
-            'balls': balls,
-            'strikes': strikes,
-            'outs_when_up': current['outs_when_up'],
-            'inning': current['inning'],
-            'stand': current['stand'],
-            'pitch_number': pitch_num,
-            'cum_pitch_count': current['cum_pitch_count'],
-            'runner_on_1b': current['runner_on_1b'],
-            'runner_on_2b': current['runner_on_2b'],
-            'runner_on_3b': current['runner_on_3b'],
-            'target_pitch': current['pitch_type_processed'],
-            'target_zone': assign_zone_8(px, pz) # 위치 타겟 추가
-        }
-
-        row['is_first_pitch'] = 1 if pitch_num == 1 else 0
-        row['is_pitcher_count'] = 1 if (strikes > balls or strikes == 2) else 0
-        row['is_hitter_count'] = 1 if (balls > strikes) else 0
-        row['is_2strikes'] = 1 if (strikes == 2) else 0
-        row['is_full_count'] = 1 if (balls == 3 and strikes == 2) else 0
-
-        start_idx = max(0, i - seq_len)
-        history = group.iloc[start_idx:i]
-
-        hist_pitches = history['pitch_type_processed'].tolist()[::-1]
-        hist_descs = history['description'].tolist()[::-1]
-        hist_xs = history['plate_x'].tolist()[::-1]
-        hist_zs = history['plate_z'].tolist()[::-1]
-
-        same_streak = 0
-        if len(hist_pitches) > 0:
-            first_p = hist_pitches[0]
-            for p in hist_pitches:
-                if p == first_p:
-                    same_streak += 1
-                else:
-                    break
-        row['same_pitch_streak'] = same_streak
-        row['at_bat_unique_pitches'] = len(set(hist_pitches))
-
-        row['prev1_is_swing'] = 1 if len(hist_descs) > 0 and 'swing' in str(hist_descs[0]) else 0
-        row['prev1_is_miss'] = 1 if len(hist_descs) > 0 and 'swinging_strike' in str(hist_descs[0]) else 0
-
-        if len(hist_xs) >= 2:
-            row['delta_x_prev1_prev2'] = hist_xs[0] - hist_xs[1]
-            row['delta_z_prev1_prev2'] = hist_zs[0] - hist_zs[1]
+        if px <= 0:
+            return 'CHASE_UL' if pz >= sz_mid else 'CHASE_LL'
         else:
-            row['delta_x_prev1_prev2'] = 0.0
-            row['delta_z_prev1_prev2'] = 0.0
-
-        if len(hist_pitches) >= 2:
-            row['pitch_combo_1_2'] = f"{hist_pitches[0]}_{hist_pitches[1]}"
-        elif len(hist_pitches) == 1:
-            row['pitch_combo_1_2'] = f"{hist_pitches[0]}_NONE"
-        else:
-            row['pitch_combo_1_2'] = "NONE_NONE"
-
-        for j in range(1, seq_len + 1):
-            idx = j - 1
-            if idx < len(hist_pitches):
-                row[f'prev{j}_pitch_type'] = hist_pitches[idx]
-                row[f'prev{j}_description'] = hist_descs[idx]
-                row[f'prev{j}_plate_x'] = hist_xs[idx]
-                row[f'prev{j}_plate_z'] = hist_zs[idx]
-            else:
-                row[f'prev{j}_pitch_type'] = 'NONE'
-                row[f'prev{j}_description'] = 'NONE'
-                row[f'prev{j}_plate_x'] = 0.0
-                row[f'prev{j}_plate_z'] = 2.5
-
-        rows.append(row)
-
-    return pd.DataFrame(rows)
+            return 'CHASE_UR' if pz >= sz_mid else 'CHASE_LR'
 
 
-def get_or_train_model(pitcher_id):
-    model_path = os.path.join(MODEL_DIR, f'pitcher_{pitcher_id}.pkl')
-    zone_model_path = os.path.join(MODEL_DIR, f'zone_pitcher_{pitcher_id}.pkl')
-    encoder_path = os.path.join(MODEL_DIR, f'encoder_{pitcher_id}.pkl')
-    zone_encoder_path = os.path.join(MODEL_DIR, f'zone_encoder_{pitcher_id}.pkl')
-    cols_path = os.path.join(MODEL_DIR, f'cols_{pitcher_id}.pkl')
+def train_and_save_models(pitcher_id):
+    """
+    메모리 사용량을 극소화한 Statcast 수집 및 경량 모델 학습 함수
+    """
+    # 1. 최근 1년치 데이터만 조회 (메모리 절약)
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
 
-    if all(os.path.exists(p) for p in [model_path, zone_model_path, encoder_path, zone_encoder_path, cols_path]):
-        print(f"[CACHE] {pitcher_id}번 모델을 기존 파일에서 로드합니다.")
-        return joblib.load(model_path), joblib.load(zone_model_path), joblib.load(encoder_path), joblib.load(zone_encoder_path), joblib.load(cols_path)
+    try:
+        df = statcast_pitcher(start_date, end_date, int(pitcher_id))
+    except Exception as e:
+        print(f"Statcast 수집 에러: {e}")
+        return None, None
 
-    print(f"[TRAIN] {pitcher_id}번 선수 데이터를 수집하고 학습을 시작합니다...")
-    df = statcast_pitcher('2024-03-01', '2026-10-31', pitcher_id)
-    df = df[df['game_type'] == 'R'].copy()
-    df = df.sort_values(by=['game_date', 'game_pk', 'at_bat_number', 'pitch_number']).reset_index(drop=True)
-    df['cum_pitch_count'] = df.groupby(['game_pk']).cumcount() + 1
+    if df is None or df.empty:
+        return None, None
 
-    df['runner_on_1b'] = df['on_1b'].notna().astype(int)
-    df['runner_on_2b'] = df['on_2b'].notna().astype(int)
-    df['runner_on_3b'] = df['on_3b'].notna().astype(int)
-    df['stand'] = df['stand'].fillna('UNKNOWN')
-    df['description'] = df['description'].fillna('unknown')
-    df['plate_x'] = df['plate_x'].fillna(df['plate_x'].median())
-    df['plate_z'] = df['plate_z'].fillna(df['plate_z'].median())
+    # 2. 필수 컬럼만 선택하여 즉시 메모리 경량화
+    req_cols = ['pitch_type', 'stand', 'balls', 'strikes', 'pitch_number', 'plate_x', 'plate_z', 'sz_top', 'sz_bot']
+    df = df[req_cols].dropna().copy()
 
-    df['pitch_type_processed'] = df['pitch_type'].apply(lambda x: x if x in MAIN_PITCHES else 'OTHER')
+    # 시간순 정렬 (statcast는 최신순으로 넘어옴)
+    df = df.iloc[::-1].reset_index(drop=True)
 
-    seq_list = []
-    for _, group in df.groupby(['game_pk', 'at_bat_number']):
-        seq_list.append(create_sequence_features(group, seq_len=SEQ_LEN))
-    
-    sequence_df = pd.concat(seq_list, ignore_index=True)
-    sequence_df = sequence_df[sequence_df['target_pitch'] != 'OTHER'].reset_index(drop=True)
+    # 8분할 존 피처 생성
+    df['zone_target'] = df.apply(categorize_zone, axis=1)
 
-    # 구종 인코더
-    label_encoder = LabelEncoder()
-    sequence_df['target'] = label_encoder.fit_transform(sequence_df['target_pitch'])
+    # 직전 투구 구종 (prev1_pitch) 파생 변수 생성
+    df['prev1_pitch'] = df['pitch_type'].shift(1)
+    df = df.dropna(subset=['prev1_pitch', 'zone_target']).copy()
 
-    # 존 위치 인코더
-    zone_encoder = LabelEncoder()
-    sequence_df['target_zone_encoded'] = zone_encoder.fit_transform(sequence_df['target_zone'])
+    if len(df) < 50:  # 투구 데이터가 너무 적으면 학습 불가
+        return None, None
 
-    feature_cols = [
-        'balls', 'strikes', 'outs_when_up', 'inning', 'stand', 'pitch_number',
-        'cum_pitch_count', 'runner_on_1b', 'runner_on_2b', 'runner_on_3b',
-        'is_first_pitch', 'is_pitcher_count', 'is_hitter_count', 'is_2strikes',
-        'is_full_count', 'same_pitch_streak', 'at_bat_unique_pitches',
-        'prev1_is_swing', 'prev1_is_miss', 'delta_x_prev1_prev2', 'delta_z_prev1_prev2',
-        'pitch_combo_1_2'
-    ]
-    for i in range(1, SEQ_LEN + 1):
-        feature_cols += [
-            f'prev{i}_pitch_type', f'prev{i}_description',
-            f'prev{i}_plate_x', f'prev{i}_plate_z'
-        ]
+    # 범주형 데이터 원-핫 인코딩
+    df_encoded = pd.get_dummies(df, columns=['stand', 'prev1_pitch'])
 
-    X = sequence_df[feature_cols].copy()
-    y_pitch = sequence_df['target'].copy()
-    y_zone = sequence_df['target_zone_encoded'].copy()
+    X = df_encoded.drop(columns=['pitch_type', 'plate_x', 'plate_z', 'sz_top', 'sz_bot', 'zone_target'])
+    y_pitch = df_encoded['pitch_type']
+    y_zone = df_encoded['zone_target']
 
-    categorical_cols = ['stand', 'pitch_combo_1_2']
-    for i in range(1, SEQ_LEN + 1):
-        categorical_cols += [f'prev{i}_pitch_type', f'prev{i}_description']
+    # 3. 모델 경량화 (n_estimators=40, max_depth=8 로 제한하여 RAM 초과 방지)
+    clf_pitch = RandomForestClassifier(n_estimators=40, max_depth=8, random_state=42, n_jobs=1)
+    clf_pitch.fit(X, y_pitch)
 
-    for col in categorical_cols:
-        X[col] = X[col].astype('category')
+    clf_zone = RandomForestClassifier(n_estimators=40, max_depth=8, random_state=42, n_jobs=1)
+    clf_zone.fit(X, y_zone)
 
-    # 구종 모델
-    model = lgb.LGBMClassifier(n_estimators=150, learning_rate=0.03, max_depth=5, random_state=42, objective='multiclass', verbose=-1)
-    model.fit(X, y_pitch, categorical_feature=categorical_cols)
+    # 학습에 사용된 컬럼 정보 포함하여 저장
+    model_data_pitch = {'model': clf_pitch, 'columns': list(X.columns)}
+    model_data_zone = {'model': clf_zone, 'columns': list(X.columns)}
 
-    # 위치 존 모델
-    zone_model = lgb.LGBMClassifier(n_estimators=150, learning_rate=0.03, max_depth=5, random_state=42, objective='multiclass', verbose=-1)
-    zone_model.fit(X, y_zone, categorical_feature=categorical_cols)
+    pitch_path = os.path.join(MODEL_DIR, f'pitch_{pitcher_id}.pkl')
+    zone_path = os.path.join(MODEL_DIR, f'zone_{pitcher_id}.pkl')
 
-    joblib.dump(model, model_path)
-    joblib.dump(zone_model, zone_model_path)
-    joblib.dump(label_encoder, encoder_path)
-    joblib.dump(zone_encoder, zone_encoder_path)
-    joblib.dump(feature_cols, cols_path)
+    joblib.dump(model_data_pitch, pitch_path, compress=3)
+    joblib.dump(model_data_zone, zone_path, compress=3)
 
-    return model, zone_model, label_encoder, zone_encoder, feature_cols
+    return model_data_pitch, model_data_zone
 
 
 @app.route('/')
@@ -213,81 +106,83 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        data = request.json
-        pitcher_id = int(data.get('pitcher_id', 694973))
-        
-        model, zone_model, label_encoder, zone_encoder, feature_cols = get_or_train_model(pitcher_id)
+        data = request.get_json()
+        pitcher_id = str(data.get('pitcher_id')).strip()
+        stand = data.get('stand')
+        balls = int(data.get('balls'))
+        strikes = int(data.get('strikes'))
+        cum_pitch_count = int(data.get('cum_pitch_count'))
+        prev1_pitch = data.get('prev1_pitch')
 
-        balls = int(data.get('balls', 0))
-        strikes = int(data.get('strikes', 0))
-        stand = data.get('stand', 'R')
-        cum_pitch_count = int(data.get('cum_pitch_count', 1))
-        pitch_number = int(data.get('pitch_number', balls + strikes + 1))
-        
-        is_first_pitch = 1 if (pitch_number == 1 or (balls == 0 and strikes == 0)) else 0
+        pitch_path = os.path.join(MODEL_DIR, f'pitch_{pitcher_id}.pkl')
+        zone_path = os.path.join(MODEL_DIR, f'zone_{pitcher_id}.pkl')
 
-        if is_first_pitch:
-            input_dict = {
-                'balls': 0, 'strikes': 0, 'outs_when_up': int(data.get('outs_when_up', 0)),
-                'inning': int(data.get('inning', 1)), 'stand': stand, 'pitch_number': 1,
-                'cum_pitch_count': cum_pitch_count, 'runner_on_1b': int(data.get('runner_on_1b', 0)),
-                'runner_on_2b': int(data.get('runner_on_2b', 0)), 'runner_on_3b': int(data.get('runner_on_3b', 0)),
-                'is_first_pitch': 1, 'is_pitcher_count': 0, 'is_hitter_count': 0, 'is_2strikes': 0, 'is_full_count': 0,
-                'same_pitch_streak': 0, 'at_bat_unique_pitches': 0, 'prev1_is_swing': 0, 'prev1_is_miss': 0,
-                'delta_x_prev1_prev2': 0.0, 'delta_z_prev1_prev2': 0.0, 'pitch_combo_1_2': 'NONE_NONE',
-                'prev1_pitch_type': 'NONE', 'prev1_description': 'NONE', 'prev1_plate_x': 0.0, 'prev1_plate_z': 2.5,
-                'prev2_pitch_type': 'NONE', 'prev2_description': 'NONE', 'prev2_plate_x': 0.0, 'prev2_plate_z': 2.5,
-                'prev3_pitch_type': 'NONE', 'prev3_description': 'NONE', 'prev3_plate_x': 0.0, 'prev3_plate_z': 2.5,
-                'prev4_pitch_type': 'NONE', 'prev4_description': 'NONE', 'prev4_plate_x': 0.0, 'prev4_plate_z': 2.5,
-                'prev5_pitch_type': 'NONE', 'prev5_description': 'NONE', 'prev5_plate_x': 0.0, 'prev5_plate_z': 2.5
-            }
+        # 기존 모델이 있으면 로드, 없으면 경량 학습 진행
+        if os.path.exists(pitch_path) and os.path.exists(zone_path):
+            model_data_pitch = joblib.load(pitch_path)
+            model_data_zone = joblib.load(zone_path)
         else:
-            prev1_pitch = data.get('prev1_pitch', 'FF')
-            input_dict = {
-                'balls': balls, 'strikes': strikes, 'outs_when_up': int(data.get('outs_when_up', 0)),
-                'inning': int(data.get('inning', 1)), 'stand': stand, 'pitch_number': pitch_number,
-                'cum_pitch_count': cum_pitch_count, 'runner_on_1b': int(data.get('runner_on_1b', 0)),
-                'runner_on_2b': int(data.get('runner_on_2b', 0)), 'runner_on_3b': int(data.get('runner_on_3b', 0)),
-                'is_first_pitch': 0, 'is_pitcher_count': 1 if (strikes > balls or strikes == 2) else 0,
-                'is_hitter_count': 1 if balls > strikes else 0, 'is_2strikes': 1 if strikes == 2 else 0,
-                'is_full_count': 1 if (balls == 3 and strikes == 2) else 0,
-                'same_pitch_streak': int(data.get('same_pitch_streak', 1)),
-                'at_bat_unique_pitches': int(data.get('at_bat_unique_pitches', 1)),
-                'prev1_is_swing': int(data.get('prev1_is_swing', 0)), 'prev1_is_miss': int(data.get('prev1_is_miss', 0)),
-                'delta_x_prev1_prev2': 0.0, 'delta_z_prev1_prev2': 0.0, 'pitch_combo_1_2': f"{prev1_pitch}_NONE",
-                'prev1_pitch_type': prev1_pitch, 'prev1_description': 'foul', 'prev1_plate_x': 0.0, 'prev1_plate_z': 2.5,
-                'prev2_pitch_type': 'NONE', 'prev2_description': 'NONE', 'prev2_plate_x': 0.0, 'prev2_plate_z': 2.5,
-                'prev3_pitch_type': 'NONE', 'prev3_description': 'NONE', 'prev3_plate_x': 0.0, 'prev3_plate_z': 2.5,
-                'prev4_pitch_type': 'NONE', 'prev4_description': 'NONE', 'prev4_plate_x': 0.0, 'prev4_plate_z': 2.5,
-                'prev5_pitch_type': 'NONE', 'prev5_description': 'NONE', 'prev5_plate_x': 0.0, 'prev5_plate_z': 2.5
-            }
+            # 오래된 다른 투수 모델 파일 삭제 (서버 용량 관리)
+            old_files = glob.glob(os.path.join(MODEL_DIR, '*.pkl'))
+            for f in old_files:
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
 
-        input_df = pd.DataFrame([input_dict])[feature_cols]
+            model_data_pitch, model_data_zone = train_and_save_models(pitcher_id)
 
-        categorical_cols = ['stand', 'pitch_combo_1_2']
-        for i in range(1, SEQ_LEN + 1):
-            categorical_cols += [f'prev{i}_pitch_type', f'prev{i}_description']
+        if not model_data_pitch or not model_data_zone:
+            return jsonify({'status': 'error', 'message': '선수 데이터를 불러올 수 없거나 투구 수가 적습니다.'}), 400
 
-        for col in categorical_cols:
-            input_df[col] = input_df[col].astype('category')
+        # 예측용 입력 데이터 프레임 구축
+        feature_cols = model_data_pitch['columns']
+        input_df = pd.DataFrame(0, index=[0], columns=feature_cols)
 
-        # 구종 확률 예측
-        proba = model.predict_proba(input_df)[0]
-        classes = label_encoder.classes_
-        result = [{'pitch': cls, 'prob': round(float(p) * 100, 2)} for cls, p in zip(classes, proba)]
-        result = sorted(result, key=lambda x: x['prob'], reverse=True)
+        # 수치형 값 채우기
+        if 'balls' in input_df.columns: input_df.at[0, 'balls'] = balls
+        if 'strikes' in input_df.columns: input_df.at[0, 'strikes'] = strikes
+        if 'pitch_number' in input_df.columns: input_df.at[0, 'pitch_number'] = cum_pitch_count
 
-        # 위치 존 확률 예측
-        zone_proba = zone_model.predict_proba(input_df)[0]
-        zone_classes = zone_encoder.classes_
-        zone_result = {cls: round(float(p) * 100, 2) for cls, p in zip(zone_classes, zone_proba)}
+        # 원-핫 인코딩 컬럼 매칭
+        stand_col = f'stand_{stand}'
+        prev_col = f'prev1_pitch_{prev1_pitch}'
 
-        return jsonify({"status": "success", "predictions": result, "zones": zone_result})
+        if stand_col in input_df.columns: input_df.at[0, stand_col] = 1
+        if prev_col in input_df.columns: input_df.at[0, prev_col] = 1
+
+        # 1. 구종 확률 예측
+        clf_pitch = model_data_pitch['model']
+        pitch_probs = clf_pitch.predict_proba(input_df)[0]
+        pitch_classes = clf_pitch.classes_
+
+        predictions = []
+        for p_class, prob in zip(pitch_classes, pitch_probs):
+            predictions.append({'pitch': p_class, 'prob': round(float(prob) * 100, 1)})
+        predictions = sorted(predictions, key=lambda x: x['prob'], reverse=True)
+
+        # 2. 8분할 코스 확률 예측
+        clf_zone = model_data_zone['model']
+        zone_probs = clf_zone.predict_proba(input_df)[0]
+        zone_classes = clf_zone.classes_
+
+        all_zones = ['SZ_UL', 'SZ_UR', 'SZ_LL', 'SZ_LR', 'CHASE_UL', 'CHASE_UR', 'CHASE_LL', 'CHASE_LR']
+        zones_dict = {z: 0.0 for z in all_zones}
+
+        for z_class, prob in zip(zone_classes, zone_probs):
+            if z_class in zones_dict:
+                zones_dict[z_class] = round(float(prob) * 100, 1)
+
+        return jsonify({
+            'status': 'success',
+            'predictions': predictions,
+            'zones': zones_dict
+        })
+
     except Exception as e:
-        print(f"[ERROR] {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"Error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=5000, debug=True)
