@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify
 from pybaseball import statcast_pitcher
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 
 app = Flask(__name__)
 
@@ -39,7 +41,7 @@ def categorize_zone(row):
 
 def train_and_save_models(pitcher_id):
     """
-    메모리 사용량을 극소화한 Statcast 수집 및 경량 모델 학습 함수
+    메모리 사용량을 극소화한 Statcast 수집, 모델 학습 및 신뢰도(정확도) 평가 함수
     """
     # 1. 최근 1년치 데이터만 조회 (메모리 절약)
     end_date = datetime.now().strftime('%Y-%m-%d')
@@ -54,11 +56,11 @@ def train_and_save_models(pitcher_id):
     if df is None or df.empty:
         return None, None
 
-    # 2. 필수 컬럼만 선택하여 즉시 메모리 경량화
+    # 2. 필수 컬럼만 선택하여 메모리 경량화
     req_cols = ['pitch_type', 'stand', 'balls', 'strikes', 'pitch_number', 'plate_x', 'plate_z', 'sz_top', 'sz_bot']
     df = df[req_cols].dropna().copy()
 
-    # 시간순 정렬 (statcast는 최신순으로 넘어옴)
+    # 시간순 정렬
     df = df.iloc[::-1].reset_index(drop=True)
 
     # 8분할 존 피처 생성
@@ -78,15 +80,36 @@ def train_and_save_models(pitcher_id):
     y_pitch = df_encoded['pitch_type']
     y_zone = df_encoded['zone_target']
 
-    # 3. 모델 경량화 (n_estimators=40, max_depth=8 로 제한하여 RAM 초과 방지)
-    clf_pitch = RandomForestClassifier(n_estimators=40, max_depth=8, random_state=42, n_jobs=1)
-    clf_pitch.fit(X, y_pitch)
+    # 🎯 3. 모델 신뢰도(정확도) 측정을 위한 데이터 분할 (80:20)
+    try:
+        X_train, X_test, y_pitch_train, y_pitch_test = train_test_split(
+            X, y_pitch, test_size=0.2, random_state=42, stratify=y_pitch
+        )
+    except ValueError:
+        # 데이터가 너무 적어 stratify가 안될 경우 일반 분할
+        X_train, X_test, y_pitch_train, y_pitch_test = train_test_split(
+            X, y_pitch, test_size=0.2, random_state=42
+        )
 
+    # 구종 예측 모델 학습
+    clf_pitch = RandomForestClassifier(n_estimators=40, max_depth=8, random_state=42, n_jobs=1)
+    clf_pitch.fit(X_train, y_pitch_train)
+
+    # 검증셋 정확도 계산
+    y_pred = clf_pitch.predict(X_test)
+    accuracy = round(float(accuracy_score(y_pitch_test, y_pred)) * 100, 1)
+
+    # 위치 예측 모델 학습
     clf_zone = RandomForestClassifier(n_estimators=40, max_depth=8, random_state=42, n_jobs=1)
     clf_zone.fit(X, y_zone)
 
-    # 학습에 사용된 컬럼 정보 포함하여 저장
-    model_data_pitch = {'model': clf_pitch, 'columns': list(X.columns)}
+    # 학습 데이터 및 성능 지표 저장
+    model_data_pitch = {
+        'model': clf_pitch,
+        'columns': list(X.columns),
+        'accuracy': accuracy,
+        'num_classes': len(np.unique(y_pitch))
+    }
     model_data_zone = {'model': clf_zone, 'columns': list(X.columns)}
 
     pitch_path = os.path.join(MODEL_DIR, f'pitch_{pitcher_id}.pkl')
@@ -122,7 +145,7 @@ def predict():
             model_data_pitch = joblib.load(pitch_path)
             model_data_zone = joblib.load(zone_path)
         else:
-            # 오래된 다른 투수 모델 파일 삭제 (서버 용량 관리)
+            # 오래된 다른 투수 모델 파일 삭제 (서버 디스크 용량 관리)
             old_files = glob.glob(os.path.join(MODEL_DIR, '*.pkl'))
             for f in old_files:
                 try:
@@ -135,7 +158,7 @@ def predict():
         if not model_data_pitch or not model_data_zone:
             return jsonify({'status': 'error', 'message': '선수 데이터를 불러올 수 없거나 투구 수가 적습니다.'}), 400
 
-        # 예측용 입력 데이터 프레임 구축
+        # 예측용 입력 데이터프레임 구축
         feature_cols = model_data_pitch['columns']
         input_df = pd.DataFrame(0, index=[0], columns=feature_cols)
 
@@ -173,10 +196,17 @@ def predict():
             if z_class in zones_dict:
                 zones_dict[z_class] = round(float(prob) * 100, 1)
 
+        # 신뢰도 관련 정보
+        accuracy = model_data_pitch.get('accuracy', 0.0)
+        num_classes = model_data_pitch.get('num_classes', 4)
+        baseline_acc = round(100.0 / num_classes, 1) if num_classes > 0 else 25.0
+
         return jsonify({
             'status': 'success',
             'predictions': predictions,
-            'zones': zones_dict
+            'zones': zones_dict,
+            'accuracy': accuracy,
+            'baseline_acc': baseline_acc
         })
 
     except Exception as e:
