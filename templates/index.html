@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>투수 구종 및 코스 예측</title>
+  <title>투수 구종 및 코스 예측 시스템</title>
   <style>
     body {
       font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
@@ -47,7 +47,6 @@
       box-sizing: border-box;
     }
     
-    /* 중앙 십자선 (전체 관통) */
     .zone-wrapper::before {
       content: '';
       position: absolute;
@@ -65,7 +64,6 @@
       z-index: 1;
     }
 
-    /* 바깥쪽 Chase 존 */
     .chase-zone {
       position: absolute;
       width: 50%; height: 50%;
@@ -82,7 +80,6 @@
     #CHASE_LL { bottom: 0; left: 0; align-items: flex-end; justify-content: flex-start; }
     #CHASE_LR { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
 
-    /* 안쪽 Strike 존 */
     .strike-box {
       position: absolute;
       top: 20%; left: 20%;
@@ -107,9 +104,38 @@
     #SZ_LL { bottom: 0; left: 0; }
     #SZ_LR { bottom: 0; right: 0; }
 
-    /* 결과 출력 영역 */
+    /* ---------------- 📊 게이지 바 스타일 ---------------- */
     .results { background: #e9ecef; padding: 15px; border-radius: 8px; margin-top: 20px; }
-    .pitch-item { display: flex; justify-content: space-between; margin-bottom: 5px; }
+    
+    .pitch-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .pitch-name {
+      width: 45px;
+      font-weight: bold;
+    }
+    .gauge-bg {
+      flex-grow: 1;
+      height: 14px;
+      background-color: #dee2e6;
+      border-radius: 7px;
+      margin: 0 10px;
+      overflow: hidden;
+    }
+    .gauge-fill {
+      height: 100%;
+      background-color: #007bff;
+      border-radius: 7px;
+      transition: width 0.4s ease-in-out;
+    }
+    .pitch-prob {
+      width: 50px;
+      text-align: right;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -120,7 +146,7 @@
   <div class="form-group">
     <div class="form-row">
       <label for="pitcher_id">선수 ID (MLB):</label>
-      <input type="text" id="pitcher_id" value="694973" placeholder="예: 694973 (Paul Skenes)">
+      <input type="text" id="pitcher_id" value="694973" placeholder="예: 694973">
     </div>
     <div class="form-row">
       <label for="stand">타자 석:</label>
@@ -131,21 +157,19 @@
     </div>
     <div class="form-row">
       <label for="balls">볼 Count:</label>
-
-      <input type="number" id="balls" value="0" min="0" max="3">
+      <input type="number" id="balls" value="1" min="0" max="3">
     </div>
     <div class="form-row">
       <label for="strikes">스트라이크 Count:</label>
-      <input type="number" id="strikes" value="0" min="0" max="2">
+      <input type="number" id="strikes" value="2" min="0" max="2">
     </div>
     <div class="form-row">
       <label for="cum_pitch_count">현재 투구 수:</label>
-      <input type="number" id="cum_pitch_count" value="10" min="1">
+      <input type="number" id="cum_pitch_count" value="25" min="1">
     </div>
     <div class="form-row">
       <label for="prev1_pitch">직전 1구 (Prev1):</label>
       <select id="prev1_pitch">
-        <option value="FIRST_PITCH">없음 (초구)</option>
         <option value="FF">포심 (FF)</option>
         <option value="SL">슬라이더 (SL)</option>
         <option value="CH">체인지업 (CH)</option>
@@ -158,9 +182,8 @@
     <div class="form-row">
       <label for="prev2_pitch">직전 2구 (Prev2):</label>
       <select id="prev2_pitch">
-        <option value="FIRST_PITCH">없음 (1~2구째)</option>
-        <option value="FF">포심 (FF)</option>
         <option value="SL">슬라이더 (SL)</option>
+        <option value="FF">포심 (FF)</option>
         <option value="CH">체인지업 (CH)</option>
         <option value="CU">커브 (CU)</option>
         <option value="SI">싱커 (SI)</option>
@@ -174,13 +197,11 @@
   <!-- 스트라이크존 영역 -->
   <h3 style="text-align: center;">🎯 코스 예상 확률</h3>
   <div class="zone-wrapper">
-    <!-- Chase Zones (4개) -->
     <div id="CHASE_UL" class="chase-zone">0%</div>
     <div id="CHASE_UR" class="chase-zone">0%</div>
     <div id="CHASE_LL" class="chase-zone">0%</div>
     <div id="CHASE_LR" class="chase-zone">0%</div>
     
-    <!-- Strike Zones (4개) -->
     <div class="strike-box">
       <div id="SZ_UL" class="strike-zone">0%</div>
       <div id="SZ_UR" class="strike-zone">0%</div>
@@ -193,10 +214,9 @@
   <div class="results">
     <h3>📊 구종 예측 확률</h3>
     <div id="pitch-predictions">예측 버튼을 눌러주세요.</div>
-    <p style="margin-top: 10px; font-size: 12px; color: #666;" id="accuracy-info"></p>
+    <p style="margin-top: 15px; font-size: 12px; color: #666;" id="accuracy-info"></p>
   </div>
 
-  <!-- JavaScript 연동 -->
   <script>
     async function getPrediction() {
       const payload = {
@@ -236,13 +256,22 @@
             }
           }
 
-          // 2. 구종 목록 렌더링
+          // 2. 구종 목록 + 게이지 바 렌더링
           const predictionsDiv = document.getElementById('pitch-predictions');
           predictionsDiv.innerHTML = '';
+          
           result.predictions.forEach(p => {
             const item = document.createElement('div');
             item.className = 'pitch-item';
-            item.innerHTML = `<span><strong>${p.pitch}</strong></span> <span>${p.prob}%</span>`;
+            
+            // 게이지바 HTML 구조 생성
+            item.innerHTML = `
+              <span class="pitch-name">${p.pitch}</span>
+              <div class="gauge-bg">
+                <div class="gauge-fill" style="width: ${p.prob}%;"></div>
+              </div>
+              <span class="pitch-prob">${p.prob}%</span>
+            `;
             predictionsDiv.appendChild(item);
           });
 
