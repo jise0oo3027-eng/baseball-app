@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>MLB AI 투수 구종 예측 시스템</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 40px; }
+        .container { max-width: 600px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 0 auto; }
+        h2 { text-align: center; color: #1a237e; margin-bottom: 25px; }
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; padding: 12px; background-color: #1a237e; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #283593; }
+        .result-box { margin-top: 25px; padding: 15px; border-radius: 8px; background-color: #f8f9fa; border: 1px solid #e9ecef; }
+        .bar-container { margin-bottom: 10px; }
+        .bar-label { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 3px; }
+        .bar-outer { background: #e0e0e0; border-radius: 4px; height: 18px; overflow: hidden; }
+        .bar-inner { background: #3f51b5; height: 100%; width: 0%; transition: width 0.4s ease; }
+        #loading { display: none; text-align: center; font-weight: bold; color: #d32f2f; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>⚾ MLB 구종 예측 AI 대시보드</h2>
+
+    <div class="form-group">
+        <label for="pitcher_id">선수 Statcast ID (예: 694973 = Paul Skenes)</label>
+        <input type="number" id="pitcher_id" value="694973">
+    </div>
+
+    <div class="form-group">
+        <label for="stand">타자 석 (Stand)</label>
+        <select id="stand">
+            <option value="R">우타자 (Right)</option>
+            <option value="L">좌타자 (Left)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="balls">볼 (Balls)</label>
+        <input type="number" id="balls" min="0" max="3" value="1">
+    </div>
+
+    <div class="form-group">
+        <label for="strikes">스트라이크 (Strikes)</label>
+        <input type="number" id="strikes" min="0" max="2" value="2">
+    </div>
+
+    <div class="form-group">
+        <label for="cum_pitch_count">경기 누적 투구수</label>
+        <input type="number" id="cum_pitch_count" value="45">
+    </div>
+
+    <div class="form-group">
+        <label for="prev1_pitch">직전 투구 구종</label>
+        <select id="prev1_pitch">
+            <option value="FF">FF (포심)</option>
+            <option value="FS">FS (스플리터)</option>
+            <option value="ST">ST (스위퍼)</option>
+            <option value="CH">CH (체인지업)</option>
+            <option value="CU">CU (커브)</option>
+            <option value="SI">SI (싱커)</option>
+            <option value="SL">SL (슬라이더)</option>
+        </select>
+    </div>
+
+    <button onclick="getPrediction()">다음 구종 예측</button>
+
+    <div id="loading">선수 데이터 수집 및 AI 모델 학습 진행 중... (최초 1회만 약 10~20초 소요)</div>
+
+    <div class="result-box" id="result">
+        조건 설정 후 버튼을 누르면 예측 결과가 표시됩니다.
+    </div>
+</div>
+
+<script>
+async function getPrediction() {
+    const loadingEl = document.getElementById('loading');
+    const resultEl = document.getElementById('result');
+    
+    loadingEl.style.display = 'block';
+    resultEl.innerHTML = '';
+
+    const payload = {
+        pitcher_id: document.getElementById('pitcher_id').value,
+        stand: document.getElementById('stand').value,
+        balls: document.getElementById('balls').value,
+        strikes: document.getElementById('strikes').value,
+        cum_pitch_count: document.getElementById('cum_pitch_count').value,
+        prev1_pitch: document.getElementById('prev1_pitch').value
+    };
+
+    try {
+        const response = await fetch('/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        loadingEl.style.display = 'none';
+
+        if (data.status === 'success') {
+            let html = '<h3>[AI 예상 구종 확률]</h3>';
+            data.predictions.forEach(item => {
+                html += `
+                    <div class="bar-container">
+                        <div class="bar-label">
+                            <span>${item.pitch}</span>
+                            <span>${item.prob}%</span>
+                        </div>
+                        <div class="bar-outer">
+                            <div class="bar-inner" style="width: ${item.prob}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            resultEl.innerHTML = html;
+        } else {
+            resultEl.innerHTML = '예측 중 오류가 발생했습니다.';
+        }
+    } catch (err) {
+        loadingEl.style.display = 'none';
+        resultEl.innerHTML = '서버 연결 실패';
+    }
+}
+</script>
+
+</body>
+</html>
