@@ -18,6 +18,45 @@
         .bar-outer { background: #e0e0e0; border-radius: 4px; height: 18px; overflow: hidden; }
         .bar-inner { background: #3f51b5; height: 100%; width: 0%; transition: width 0.4s ease; }
         #loading { display: none; text-align: center; font-weight: bold; color: #d32f2f; margin-top: 15px; }
+
+        /* 8분할 존 (네모 안의 네모) 스타일 */
+        .zone-title { text-align: center; margin-top: 20px; font-weight: bold; color: #1a237e; }
+        .chase-zone {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1.5fr 1fr;
+            width: 260px;
+            height: 300px;
+            border: 2px dashed #888;
+            padding: 10px;
+            gap: 5px;
+            background-color: #ffffff;
+            margin: 15px auto 0 auto;
+            border-radius: 8px;
+        }
+        .strike-zone {
+            grid-column: span 2;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            border: 3px solid #222;
+            gap: 3px;
+            background-color: #eef2f7;
+            padding: 3px;
+        }
+        .zone-box {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            transition: background-color 0.4s, color 0.4s;
+            text-align: center;
+            line-height: 1.2;
+            white-space: pre-line;
+        }
     </style>
 </head>
 <body>
@@ -66,7 +105,7 @@
         </select>
     </div>
 
-    <button onclick="getPrediction()">다음 구종 예측</button>
+    <button onclick="getPrediction()">다음 구종 및 코스 예측</button>
 
     <div id="loading">선수 데이터 수집 및 AI 모델 학습 진행 중... (최초 1회만 약 10~20초 소요)</div>
 
@@ -103,6 +142,7 @@ async function getPrediction() {
         loadingEl.style.display = 'none';
 
         if (data.status === 'success') {
+            // 1. 구종 확률 바 차트
             let html = '<h3>[AI 예상 구종 확률]</h3>';
             data.predictions.forEach(item => {
                 html += `
@@ -117,7 +157,32 @@ async function getPrediction() {
                     </div>
                 `;
             });
+
+            // 2. 8분할 코스(스트존/체이스존) HTML 추가
+            html += `
+                <div class="zone-title"> 예상 투구 코스 (8분할)</div>
+                <div class="chase-zone">
+                    <div id="zone-CHASE_UL" class="zone-box">CHASE\nUL</div>
+                    <div id="zone-CHASE_UR" class="zone-box">CHASE\nUR</div>
+                    
+                    <div class="strike-zone">
+                        <div id="zone-SZ_UL" class="zone-box">SZ UL</div>
+                        <div id="zone-SZ_UR" class="zone-box">SZ UR</div>
+                        <div id="zone-SZ_LL" class="zone-box">SZ LL</div>
+                        <div id="zone-SZ_LR" class="zone-box">SZ LR</div>
+                    </div>
+
+                    <div id="zone-CHASE_LL" class="zone-box">CHASE\nLL</div>
+                    <div id="zone-CHASE_LR" class="zone-box">CHASE\nLR</div>
+                </div>
+            `;
+
             resultEl.innerHTML = html;
+
+            // 3. 존별 확률을 받아 색상(히트맵) 업데이트
+            if (data.zones) {
+                updateZoneHeatmap(data.zones);
+            }
         } else {
             resultEl.innerHTML = '예측 중 오류가 발생했습니다.';
         }
@@ -125,6 +190,20 @@ async function getPrediction() {
         loadingEl.style.display = 'none';
         resultEl.innerHTML = '서버 연결 실패';
     }
+}
+
+function updateZoneHeatmap(zones) {
+    Object.keys(zones).forEach(zoneKey => {
+        const prob = zones[zoneKey];
+        const el = document.getElementById(`zone-${zoneKey}`);
+        if (el) {
+            el.innerText = `${zoneKey.replace('_', '\n')}\n(${prob}%)`;
+            // 확률에 따라 붉은색 알파값(투명도) 적용
+            const alpha = Math.min(prob / 35, 1.0);
+            el.style.backgroundColor = `rgba(255, 59, 48, ${alpha})`;
+            el.style.color = alpha > 0.4 ? '#ffffff' : '#000000';
+        }
+    });
 }
 </script>
 
