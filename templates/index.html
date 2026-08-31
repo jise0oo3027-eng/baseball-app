@@ -36,6 +36,18 @@
     button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; }
     button:hover { background-color: #0056b3; }
 
+    /* 주자 체크박스 그룹 스타일 */
+    .checkbox-group {
+      display: flex;
+      gap: 15px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .checkbox-group label {
+      font-weight: normal;
+      cursor: pointer;
+    }
+
     /* ---------------- 🎯 8분할 스트라이크 존 스타일 ---------------- */
     .zone-wrapper {
       position: relative;
@@ -47,7 +59,6 @@
       box-sizing: border-box;
     }
     
-    /* 중앙 십자선 (전체 관통) */
     .zone-wrapper::before {
       content: '';
       position: absolute;
@@ -65,7 +76,6 @@
       z-index: 1;
     }
 
-    /* 바깥쪽 Chase 존 (모서리 배치) */
     .chase-zone {
       position: absolute;
       width: 50%; height: 50%;
@@ -83,7 +93,6 @@
     #CHASE_LL { bottom: 0; left: 0; align-items: flex-end; justify-content: flex-start; }
     #CHASE_LR { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
 
-    /* 안쪽 Strike 존 (중앙 배치) */
     .strike-box {
       position: absolute;
       top: 20%; left: 20%;
@@ -109,7 +118,6 @@
     #SZ_LL { bottom: 0; left: 0; }
     #SZ_LR { bottom: 0; right: 0; }
 
-    /* ⚾ 하단 홈플레이트 스타일 */
     .home-plate-container {
       display: flex;
       justify-content: center;
@@ -123,7 +131,6 @@
       clip-path: polygon(0% 0%, 100% 0%, 100% 35%, 50% 100%, 0% 35%);
     }
 
-    /* ---------------- 📊 구종 예측 게이지 바 스타일 ---------------- */
     .results { background: #e9ecef; padding: 15px; border-radius: 8px; margin-top: 25px; }
     
     .pitch-item {
@@ -183,8 +190,16 @@
       <input type="number" id="strikes" value="2" min="0" max="2">
     </div>
     <div class="form-row">
-      <label for="cum_pitch_count">현재 투구 수:</label>
-      <input type="number" id="cum_pitch_count" value="25" min="1">
+      <label for="at_bat_pitch_number">타석 내 투구 수:</label>
+      <input type="number" id="at_bat_pitch_number" value="3" min="1" max="10">
+    </div>
+    <div class="form-row">
+      <label>주자 상황:</label>
+      <div class="checkbox-group">
+        <label><input type="checkbox" id="on_1b"> 1루</label>
+        <label><input type="checkbox" id="on_2b"> 2루</label>
+        <label><input type="checkbox" id="on_3b"> 3루</label>
+      </div>
     </div>
     <div class="form-row">
       <label for="prev1_pitch">직전 1구 (Prev1):</label>
@@ -196,7 +211,7 @@
         <option value="SI">싱커 (SI)</option>
         <option value="ST">스위퍼 (ST)</option>
         <option value="FS">스플리터 (FS)</option>
-        <option value="FIRST_PITCH">없음 (초구)</option>
+        <option value="FIRST">없음 (초구)</option>
       </select>
     </div>
     <div class="form-row">
@@ -209,7 +224,7 @@
         <option value="SI">싱커 (SI)</option>
         <option value="ST">스위퍼 (ST)</option>
         <option value="FS">스플리터 (FS)</option>
-        <option value="FIRST_PITCH">없음 (1~2구째)</option>
+        <option value="FIRST">없음 (1~2구째)</option>
       </select>
     </div>
     <button onclick="getPrediction()">예측하기</button>
@@ -254,7 +269,10 @@
         stand: document.getElementById('stand').value,
         balls: parseInt(document.getElementById('balls').value),
         strikes: parseInt(document.getElementById('strikes').value),
-        cum_pitch_count: parseInt(document.getElementById('cum_pitch_count').value),
+        at_bat_pitch_number: parseInt(document.getElementById('at_bat_pitch_number').value),
+        on_1b: document.getElementById('on_1b').checked ? 1 : 0,
+        on_2b: document.getElementById('on_2b').checked ? 1 : 0,
+        on_3b: document.getElementById('on_3b').checked ? 1 : 0,
         prev1_pitch: document.getElementById('prev1_pitch').value,
         prev2_pitch: document.getElementById('prev2_pitch').value
       };
@@ -269,7 +287,7 @@
         const result = await response.json();
 
         if (result.status === 'success') {
-          // 1. 코스 확률 렌더링 & 히트맵 색상/가독성 가공
+          // 1. 코스 확률 렌더링 & 히트맵 색상 가공
           const zones = result.zones;
           const maxProb = Math.max(...Object.values(zones));
 
@@ -281,7 +299,6 @@
                 const alpha = (prob / maxProb) * 0.85;
                 el.style.backgroundColor = `rgba(255, 69, 58, ${alpha})`;
                 
-                // 히트맵 배경이 진해지면 글씨를 흰색으로 변경하여 가독성 확보
                 if (alpha > 0.45) {
                   el.style.color = '#ffffff';
                 } else {
@@ -312,9 +329,9 @@
             predictionsDiv.appendChild(item);
           });
 
-          // 3. 정확도 정보 출력
+          // 3. 정확도 정보 출력 (구종 정확도, 코스 정확도, 베이스라인 포함)
           document.getElementById('accuracy-info').innerText = 
-            `모델 교차 검증 정확도: ${result.accuracy}% (기존 베이스라인: ${result.baseline_acc}%)`;
+            `구종 모델 정확도: ${result.accuracy}% | 코스 모델 정확도: ${result.zone_accuracy}% (기존 베이스라인: ${result.baseline_acc}%)`;
 
         } else {
           alert('오류: ' + result.message);
