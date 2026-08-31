@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>MLB AI 투수 구종 예측 시스템</title>
+    <title>MLB AI 투수 구종 및 코스 예측 시스템</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 40px; }
         .container { max-width: 600px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 0 auto; }
@@ -12,15 +12,29 @@
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
         button { width: 100%; padding: 12px; background-color: #1a237e; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         button:hover { background-color: #283593; }
-        .result-box { margin-top: 25px; padding: 15px; border-radius: 8px; background-color: #f8f9fa; border: 1px solid #e9ecef; }
+        .result-box { margin-top: 25px; padding: 20px; border-radius: 8px; background-color: #f8f9fa; border: 1px solid #e9ecef; }
+        
+        /* 모델 신뢰도 배지 스타일 */
+        .accuracy-card {
+            background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+            border: 1px solid #3f51b5;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .accuracy-title { font-size: 13px; color: #303f9f; font-weight: bold; }
+        .accuracy-value { font-size: 26px; font-weight: 800; color: #1a237e; margin: 4px 0; }
+        .accuracy-sub { font-size: 12px; color: #5c6bc0; }
+
         .bar-container { margin-bottom: 10px; }
         .bar-label { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 3px; }
         .bar-outer { background: #e0e0e0; border-radius: 4px; height: 18px; overflow: hidden; }
         .bar-inner { background: #3f51b5; height: 100%; width: 0%; transition: width 0.4s ease; }
         #loading { display: none; text-align: center; font-weight: bold; color: #d32f2f; margin-top: 15px; }
 
-        /* 8분할 존 (네모 안의 네모) 스타일 */
-        .zone-title { text-align: center; margin-top: 20px; font-weight: bold; color: #1a237e; }
+        /* 8분할 존 시각화 스타일 */
+        .zone-title { text-align: center; margin-top: 25px; font-weight: bold; color: #1a237e; }
         .chase-zone {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -62,7 +76,7 @@
 <body>
 
 <div class="container">
-    <h2>⚾ MLB 구종 예측 AI 대시보드</h2>
+    <h2>⚾ MLB 구종 및 코스 예측 AI</h2>
 
     <div class="form-group">
         <label for="pitcher_id">선수 Statcast ID (예: 694973 = Paul Skenes)</label>
@@ -107,7 +121,7 @@
 
     <button onclick="getPrediction()">다음 구종 및 코스 예측</button>
 
-    <div id="loading">선수 데이터 수집 및 AI 모델 학습 진행 중... (최초 1회만 약 10~20초 소요)</div>
+    <div id="loading">선수 데이터 수집 및 AI 모델 학습 진행 중... (최초 1회 약 10초 소요)</div>
 
     <div class="result-box" id="result">
         조건 설정 후 버튼을 누르면 예측 결과가 표시됩니다.
@@ -142,8 +156,17 @@ async function getPrediction() {
         loadingEl.style.display = 'none';
 
         if (data.status === 'success') {
-            // 1. 구종 확률 바 차트
-            let html = '<h3>[AI 예상 구종 확률]</h3>';
+            // 1. 모델 신뢰도(정확도) 카드 HTML
+            let html = `
+                <div class="accuracy-card">
+                    <div class="accuracy-title">🎯 AI 모델 테스트 신뢰도 (Accuracy)</div>
+                    <div class="accuracy-value">${data.accuracy}%</div>
+                    <div class="accuracy-sub">랜덤 예측 기준(${data.baseline_acc}%) 대비 뛰어난 패턴 포착 성능</div>
+                </div>
+                <h3>[AI 예상 구종 확률]</h3>
+            `;
+
+            // 2. 구종 확률 바 차트
             data.predictions.forEach(item => {
                 html += `
                     <div class="bar-container">
@@ -158,9 +181,9 @@ async function getPrediction() {
                 `;
             });
 
-            // 2. 8분할 코스(스트존/체이스존) HTML 추가
+            // 3. 8분할 코스(스트존/체이스존) HTML
             html += `
-                <div class="zone-title"> 예상 투구 코스 (8분할)</div>
+                <div class="zone-title">🎯 예상 투구 코스 (8분할)</div>
                 <div class="chase-zone">
                     <div id="zone-CHASE_UL" class="zone-box">CHASE\nUL</div>
                     <div id="zone-CHASE_UR" class="zone-box">CHASE\nUR</div>
@@ -179,16 +202,16 @@ async function getPrediction() {
 
             resultEl.innerHTML = html;
 
-            // 3. 존별 확률을 받아 색상(히트맵) 업데이트
+            // 4. 존별 확률 히트맵 색상 적용
             if (data.zones) {
                 updateZoneHeatmap(data.zones);
             }
         } else {
-            resultEl.innerHTML = '예측 중 오류가 발생했습니다.';
+            resultEl.innerHTML = '예측 중 오류가 발생했습니다: ' + (data.message || '');
         }
     } catch (err) {
         loadingEl.style.display = 'none';
-        resultEl.innerHTML = '서버 연결 실패';
+        resultEl.innerHTML = '서버 연결 실패 (메모리 초과 또는 네트워크 오류)';
     }
 }
 
@@ -198,7 +221,6 @@ function updateZoneHeatmap(zones) {
         const el = document.getElementById(`zone-${zoneKey}`);
         if (el) {
             el.innerText = `${zoneKey.replace('_', '\n')}\n(${prob}%)`;
-            // 확률에 따라 붉은색 알파값(투명도) 적용
             const alpha = Math.min(prob / 35, 1.0);
             el.style.backgroundColor = `rgba(255, 59, 48, ${alpha})`;
             el.style.color = alpha > 0.4 ? '#ffffff' : '#000000';
