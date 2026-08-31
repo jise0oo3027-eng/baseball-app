@@ -11,7 +11,6 @@ warnings.filterwarnings('ignore')
 
 app = Flask(__name__)
 
-# 모델 저장 디렉토리 생성
 MODEL_DIR = './models'
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -103,19 +102,18 @@ def create_sequence_features(group, seq_len=5):
 
 
 def get_or_train_model(pitcher_id):
-    """모델 캐싱 및 온디맨드 학습 처리"""
     model_path = os.path.join(MODEL_DIR, f'pitcher_{pitcher_id}.pkl')
     encoder_path = os.path.join(MODEL_DIR, f'encoder_{pitcher_id}.pkl')
     cols_path = os.path.join(MODEL_DIR, f'cols_{pitcher_id}.pkl')
 
-    # 캐시 존재 시 로드
     if os.path.exists(model_path) and os.path.exists(encoder_path) and os.path.exists(cols_path):
+        print(f"[CACHE] {pitcher_id}번 모델을 기존 파일에서 로드합니다.")
         model = joblib.load(model_path)
         label_encoder = joblib.load(encoder_path)
         feature_cols = joblib.load(cols_path)
         return model, label_encoder, feature_cols
 
-    # 신규 수집 및 학습
+    print(f"[TRAIN] {pitcher_id}번 선수 데이터를 수집하고 학습을 시작합니다...")
     df = statcast_pitcher('2024-03-01', '2026-10-31', pitcher_id)
     df = df[df['game_type'] == 'R'].copy()
     df = df.sort_values(by=['game_date', 'game_pk', 'at_bat_number', 'pitch_number']).reset_index(drop=True)
@@ -131,12 +129,11 @@ def get_or_train_model(pitcher_id):
 
     df['pitch_type_processed'] = df['pitch_type'].apply(lambda x: x if x in MAIN_PITCHES else 'OTHER')
 
-    sequence_df = (
-        df.groupby(['game_pk', 'at_bat_number'], group_keys=False)
-        .apply(create_sequence_features, seq_len=SEQ_LEN, include_groups=False)
-        .reset_index(drop=True)
-    )
-
+    seq_list = []
+    for _, group in df.groupby(['game_pk', 'at_bat_number']):
+        seq_list.append(create_sequence_features(group, seq_len=SEQ_LEN))
+    
+    sequence_df = pd.concat(seq_list, ignore_index=True)
     sequence_df = sequence_df[sequence_df['target_pitch'] != 'OTHER'].reset_index(drop=True)
 
     label_encoder = LabelEncoder()
@@ -166,7 +163,6 @@ def get_or_train_model(pitcher_id):
     for col in categorical_cols:
         X[col] = X[col].astype('category')
 
-    # 클래스 균형 기반 동적 가중치 자동 산출
     class_counts = y.value_counts().to_dict()
     total_samples = len(y)
     n_classes = len(class_counts)
@@ -184,7 +180,6 @@ def get_or_train_model(pitcher_id):
     )
     model.fit(X, y, categorical_feature=categorical_cols)
 
-    # 캐시 파일 저장
     joblib.dump(model, model_path)
     joblib.dump(label_encoder, encoder_path)
     joblib.dump(feature_cols, cols_path)
@@ -199,69 +194,111 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.json
-    pitcher_id = int(data.get('pitcher_id', 694973))
-    
-    # 모델 확보 (학습 또는 파일 불러오기)
-    model, label_encoder, feature_cols = get_or_train_model(pitcher_id)
+    try:
+        data = request.json
+        pitcher_id = int(data.get('pitcher_id', 694973))
+        
+        model, label_encoder, feature_cols = get_or_train_model(pitcher_id)
 
-    balls = int(data.get('balls', 0))
-    strikes = int(data.get('strikes', 0))
-    stand = data.get('stand', 'R')
-    cum_pitch_count = int(data.get('cum_pitch_count', 50))
-    prev1_pitch = data.get('prev1_pitch', 'FF')
+        balls = int(data.get('balls', 0))
+        strikes = int(data.get('strikes', 0))
+        stand = data.get('stand', 'R')
+        cum_pitch_count = int(data.get('cum_pitch_count', 1))
+        
+        # 타석 내 투구 번호 (전달받지 못하면 볼카운트 기반 판단)
+        pitch_number = int(data.get('pitch_number', balls + strikes + 1))
+        
+        # 초구 여부 판단 (pitch_number가 1이거나 볼카운트가 0-0인 경우)
+        is_first_pitch = 1 if (pitch_number == 1 or (balls == 0 and strikes == 0)) else 0
 
-    # 단일 시뮬레이션용 입력 데이터 생성
-    input_dict = {
-        'balls': balls,
-        'strikes': strikes,
-        'outs_when_up': 1,
-        'inning': 3,
-        'stand': stand,
-        'pitch_number': 3,
-        'cum_pitch_count': cum_pitch_count,
-        'runner_on_1b': 0, 'runner_on_2b': 0, 'runner_on_3b': 0,
-        'is_first_pitch': 0,
-        'is_pitcher_count': 1 if strikes > balls or strikes == 2 else 0,
-        'is_hitter_count': 1 if balls > strikes else 0,
-        'is_2strikes': 1 if strikes == 2 else 0,
-        'is_full_count': 1 if (balls == 3 and strikes == 2) else 0,
-        'same_pitch_streak': 1,
-        'at_bat_unique_pitches': 2,
-        'prev1_is_swing': 1,
-        'prev1_is_miss': 0,
-        'delta_x_prev1_prev2': 0.1,
-        'delta_z_prev1_prev2': -0.2,
-        'pitch_combo_1_2': f"{prev1_pitch}_FF",
-        'prev1_pitch_type': prev1_pitch, 'prev1_description': 'foul', 'prev1_plate_x': 0.1, 'prev1_plate_z': 2.3,
-        'prev2_pitch_type': 'FF', 'prev2_description': 'ball', 'prev2_plate_x': 0.0, 'prev2_plate_z': 2.5,
-        'prev3_pitch_type': 'NONE', 'prev3_description': 'NONE', 'prev3_plate_x': 0.0, 'prev3_plate_z': 2.5,
-        'prev4_pitch_type': 'NONE', 'prev4_description': 'NONE', 'prev4_plate_x': 0.0, 'prev4_plate_z': 2.5,
-        'prev5_pitch_type': 'NONE', 'prev5_description': 'NONE', 'prev5_plate_x': 0.0, 'prev5_plate_z': 2.5
-    }
+        if is_first_pitch:
+            # === 초구 상황: 이전 투구 이력이 아예 존재하지 않음 ===
+            input_dict = {
+                'balls': 0,
+                'strikes': 0,
+                'outs_when_up': int(data.get('outs_when_up', 0)),
+                'inning': int(data.get('inning', 1)),
+                'stand': stand,
+                'pitch_number': 1,
+                'cum_pitch_count': cum_pitch_count,
+                'runner_on_1b': int(data.get('runner_on_1b', 0)),
+                'runner_on_2b': int(data.get('runner_on_2b', 0)),
+                'runner_on_3b': int(data.get('runner_on_3b', 0)),
+                'is_first_pitch': 1,
+                'is_pitcher_count': 0,
+                'is_hitter_count': 0,
+                'is_2strikes': 0,
+                'is_full_count': 0,
+                'same_pitch_streak': 0,
+                'at_bat_unique_pitches': 0,
+                'prev1_is_swing': 0,
+                'prev1_is_miss': 0,
+                'delta_x_prev1_prev2': 0.0,
+                'delta_z_prev1_prev2': 0.0,
+                'pitch_combo_1_2': 'NONE_NONE',
+                'prev1_pitch_type': 'NONE', 'prev1_description': 'NONE', 'prev1_plate_x': 0.0, 'prev1_plate_z': 2.5,
+                'prev2_pitch_type': 'NONE', 'prev2_description': 'NONE', 'prev2_plate_x': 0.0, 'prev2_plate_z': 2.5,
+                'prev3_pitch_type': 'NONE', 'prev3_description': 'NONE', 'prev3_plate_x': 0.0, 'prev3_plate_z': 2.5,
+                'prev4_pitch_type': 'NONE', 'prev4_description': 'NONE', 'prev4_plate_x': 0.0, 'prev4_plate_z': 2.5,
+                'prev5_pitch_type': 'NONE', 'prev5_description': 'NONE', 'prev5_plate_x': 0.0, 'prev5_plate_z': 2.5
+            }
+        else:
+            # === 2구 이상 상황: 사용자가 전달한 직전 구종 반영 ===
+            prev1_pitch = data.get('prev1_pitch', 'FF')
+            
+            input_dict = {
+                'balls': balls,
+                'strikes': strikes,
+                'outs_when_up': int(data.get('outs_when_up', 0)),
+                'inning': int(data.get('inning', 1)),
+                'stand': stand,
+                'pitch_number': pitch_number,
+                'cum_pitch_count': cum_pitch_count,
+                'runner_on_1b': int(data.get('runner_on_1b', 0)),
+                'runner_on_2b': int(data.get('runner_on_2b', 0)),
+                'runner_on_3b': int(data.get('runner_on_3b', 0)),
+                'is_first_pitch': 0,
+                'is_pitcher_count': 1 if (strikes > balls or strikes == 2) else 0,
+                'is_hitter_count': 1 if balls > strikes else 0,
+                'is_2strikes': 1 if strikes == 2 else 0,
+                'is_full_count': 1 if (balls == 3 and strikes == 2) else 0,
+                'same_pitch_streak': int(data.get('same_pitch_streak', 1)),
+                'at_bat_unique_pitches': int(data.get('at_bat_unique_pitches', 1)),
+                'prev1_is_swing': int(data.get('prev1_is_swing', 0)),
+                'prev1_is_miss': int(data.get('prev1_is_miss', 0)),
+                'delta_x_prev1_prev2': 0.0,
+                'delta_z_prev1_prev2': 0.0,
+                'pitch_combo_1_2': f"{prev1_pitch}_NONE",
+                'prev1_pitch_type': prev1_pitch, 'prev1_description': 'foul', 'prev1_plate_x': 0.0, 'prev1_plate_z': 2.5,
+                'prev2_pitch_type': 'NONE', 'prev2_description': 'NONE', 'prev2_plate_x': 0.0, 'prev2_plate_z': 2.5,
+                'prev3_pitch_type': 'NONE', 'prev3_description': 'NONE', 'prev3_plate_x': 0.0, 'prev3_plate_z': 2.5,
+                'prev4_pitch_type': 'NONE', 'prev4_description': 'NONE', 'prev4_plate_x': 0.0, 'prev4_plate_z': 2.5,
+                'prev5_pitch_type': 'NONE', 'prev5_description': 'NONE', 'prev5_plate_x': 0.0, 'prev5_plate_z': 2.5
+            }
 
-    input_df = pd.DataFrame([input_dict])[feature_cols]
+        input_df = pd.DataFrame([input_dict])[feature_cols]
 
-    categorical_cols = ['stand', 'pitch_combo_1_2']
-    for i in range(1, SEQ_LEN + 1):
-        categorical_cols += [f'prev{i}_pitch_type', f'prev{i}_description']
+        categorical_cols = ['stand', 'pitch_combo_1_2']
+        for i in range(1, SEQ_LEN + 1):
+            categorical_cols += [f'prev{i}_pitch_type', f'prev{i}_description']
 
-    for col in categorical_cols:
-        input_df[col] = input_df[col].astype('category')
+        for col in categorical_cols:
+            input_df[col] = input_df[col].astype('category')
 
-    proba = model.predict_proba(input_df)[0]
-    classes = label_encoder.classes_
+        proba = model.predict_proba(input_df)[0]
+        classes = label_encoder.classes_
 
-    result = []
-    for cls, p in zip(classes, proba):
-        result.append({'pitch': cls, 'prob': round(float(p) * 100, 2)})
+        result = []
+        for cls, p in zip(classes, proba):
+            result.append({'pitch': cls, 'prob': round(float(p) * 100, 2)})
 
-    result = sorted(result, key=lambda x: x['prob'], reverse=True)
+        result = sorted(result, key=lambda x: x['prob'], reverse=True)
 
-    return jsonify({"status": "success", "predictions": result})
+        return jsonify({"status": "success", "predictions": result})
+    except Exception as e:
+        print(f"[ERROR] {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-
-import os
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
