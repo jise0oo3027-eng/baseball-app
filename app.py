@@ -8,7 +8,7 @@ app = Flask(__name__)
 MODEL_DIR = 'models'
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-PITCH_TYPES = ['FF', 'SL', 'CH', 'CU', 'SI', 'ST', 'FS']
+PITCH_TYPES = ['FF', 'SL', 'CH', 'CU', 'SI', 'FS', 'FC']
 ALL_ZONES = ['SZ_UL', 'SZ_UR', 'SZ_LL', 'SZ_LR', 'CHASE_UL', 'CHASE_UR', 'CHASE_LL', 'CHASE_LR']
 
 def categorize_zone_dynamic(row):
@@ -27,7 +27,6 @@ def categorize_zone_dynamic(row):
     return f"{prefix}{vert}{side}"
 
 def train_and_save_models(pitcher_id):
-    # 포트폴리오 재현성을 위해 실험 데이터 기간을 고정 (정규시즌 기준)
     start_date = '2024-01-01'
     end_date = '2025-12-31'
     
@@ -38,21 +37,20 @@ def train_and_save_models(pitcher_id):
 
     if df is None or df.empty: return None
 
-    # 1. 정규시즌('R') 데이터만 필터링 및 시간순 정렬
     if 'game_type' in df.columns:
         df = df[df['game_type'] == 'R'].copy()
         
     df = df.sort_values(['game_date', 'game_pk', 'at_bat_number', 'pitch_number']).reset_index(drop=True)
 
-    # 2. 고유 경기(game_pk) 및 타석 기준 직전 구종 생성 (필터링 전 수행하여 시퀀스 보존)
+    if 'pitch_type' in df.columns:
+        df['pitch_type'] = df['pitch_type'].replace('ST', 'SL')
+
     df['prev1_pitch'] = df.groupby(['game_pk', 'at_bat_number'])['pitch_type'].shift(1).fillna('FIRST')
     df['prev2_pitch'] = df.groupby(['game_pk', 'at_bat_number'])['pitch_type'].shift(2).fillna('FIRST')
 
-    # 3. 모델링 대상 구종 필터링 및 타자 맞춤형(sz_top/sz_bot) 동적 존 생성
     df = df[df['pitch_type'].isin(PITCH_TYPES)].copy()
     df['zone_target'] = df.apply(categorize_zone_dynamic, axis=1)
     
-    # 4. 주자 상황(개별 ON/OFF) 처리 (중복 피처인 count_advantage 제거)
     for col in ['on_1b', 'on_2b', 'on_3b']:
         df[col] = df[col].notnull().astype(int) if col in df.columns else 0
 
@@ -65,34 +63,44 @@ def train_and_save_models(pitcher_id):
 
     if len(df) < 50: return None
 
-    # 원-핫 인코딩 (입력 데이터 포맷 고정)
     df_encoded = pd.get_dummies(df, columns=['stand', 'prev1_pitch', 'prev2_pitch'])
     
     X = df_encoded.drop(columns=['pitch_type', 'zone_target'])
     y_pitch = df_encoded['pitch_type']
     y_zone = df_encoded['zone_target']
 
-    # 5. 시계열(과거->미래) 기준 80:20 분할 (Data Leakage 방지)
     split_idx = int(len(X) * 0.8)
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_pitch_train, y_pitch_test = y_pitch.iloc[:split_idx], y_pitch.iloc[split_idx:]
     y_zone_train, y_zone_test = y_zone.iloc[:split_idx], y_zone.iloc[split_idx:]
 
-    # 모델 학습
-    clf_pitch = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+    clf_pitch = RandomForestClassifier(n_estimators=100, max_depth=10, class_weight='balanced', random_state=42, n_jobs=-1)
     clf_pitch.fit(X_train, y_pitch_train)
     
-    clf_zone = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+    clf_zone = RandomForestClassifier(n_estimators=100, max_depth=10, class_weight='balanced', random_state=42, n_jobs=-1)
     clf_zone.fit(X_train, y_zone_train)
 
-    # 6. 정밀 성능 평가 (Pitch Accuracy, Zone Accuracy 및 훈련 데이터 기반 엄밀한 베이스라인 산정)
+    # 기본 성능 평가
     pitch_preds = clf_pitch.predict(X_test)
     zone_preds = clf_zone.predict(X_test)
     
     pitch_accuracy = round(float(accuracy_score(y_pitch_test, pitch_preds)) * 100, 1)
     zone_accuracy = round(float(accuracy_score(y_zone_test, zone_preds)) * 100, 1)
     
-    # 훈련 데이터 최빈값 기준 엄격한 베이스라인 산정
+    # 🎯 Top-2 Accuracy 계산 로직 추가
+    pitch_probs = clf_pitch.predict_proba(X_test)
+    classes = clf_pitch.classes_
+    top2_correct = 0
+    
+    for i, true_label in enumerate(y_pitch_test):
+        # 확률이 높은 순으로 상위 2개 클래스 인덱스 추출
+        top2_indices = pitch_probs[i].argsort()[-2:][::-1]
+        top2_classes = [classes[idx] for idx in top2_indices]
+        if true_label in top2_classes:
+            top2_correct += 1
+            
+    top2_accuracy = round(float(top2_correct / len(y_pitch_test)) * 100, 1)
+
     baseline_pitch = y_pitch_train.mode()[0]
     baseline_acc = round(float((y_pitch_test == baseline_pitch).mean()) * 100, 1)
 
@@ -101,6 +109,7 @@ def train_and_save_models(pitcher_id):
         'zone_model': clf_zone,
         'columns': list(X.columns),
         'accuracy': pitch_accuracy,
+        'top2_accuracy': top2_accuracy, # 추가된 Top-2 지표 저장
         'zone_accuracy': zone_accuracy,
         'baseline_acc': baseline_acc
     }
@@ -121,7 +130,6 @@ def predict():
         p_id = str(data.get('pitcher_id')).strip()
         model_path = os.path.join(MODEL_DIR, f'{p_id}.pkl')
 
-        # 캐싱된 모델 로드 또는 신규 학습
         if not os.path.exists(model_path):
             model_data = train_and_save_models(p_id)
         else:
@@ -130,7 +138,6 @@ def predict():
         if not model_data:
             return jsonify({'status': 'error', 'message': '데이터가 부족하거나 수집 실패했습니다.'}), 400
 
-        # 추론용 DataFrame 원패스 구축 (컬럼 정합성 유지)
         cols = model_data['columns']
         input_df = pd.DataFrame(0, index=[0], columns=cols)
         
@@ -168,6 +175,7 @@ def predict():
             'predictions': preds,
             'zones': zone_map,
             'accuracy': model_data.get('accuracy', 0.0),
+            'top2_accuracy': model_data.get('top2_accuracy', 0.0), # 프론트엔드로 전달
             'zone_accuracy': model_data.get('zone_accuracy', 0.0),
             'baseline_acc': model_data.get('baseline_acc', 0.0)
         })
