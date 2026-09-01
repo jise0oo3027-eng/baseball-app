@@ -52,18 +52,29 @@ button {
 button:hover { background-color: #0056b3; }
 
 /* ---------------- ⚾ 야구장 내야 다이아몬드 베이스 스타일 ---------------- */
+.base-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #ffffff;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    gap: 8px;
+}
+
 .base-field-container {
     display: flex;
     justify-content: center;
     align-items: center;
-    margin: 10px 0;
-    height: 90px;
+    width: 100%;
+    height: 75px;
 }
 
 .baseball-diamond {
     position: relative;
-    width: 120px;
-    height: 65px;
+    width: 110px;
+    height: 55px;
 }
 
 .base-item {
@@ -72,7 +83,6 @@ button:hover { background-color: #0056b3; }
     flex-direction: column;
     align-items: center;
     cursor: pointer;
-    gap: 3px;
 }
 
 .base-item input[type="checkbox"] {
@@ -91,14 +101,7 @@ button:hover { background-color: #0056b3; }
     box-shadow: 0 2px 4px rgba(0,0,0,0.08);
 }
 
-.base-item span {
-    font-size: 11px;
-    font-weight: bold;
-    color: #6c757d;
-    transition: color 0.2s;
-}
-
-/* 체크(클릭)되었을 때 노란색 불 효과 및 글자 강조 */
+/* 체크(클릭)되었을 때 노란색 불 효과 */
 .base-item input[type="checkbox"]:checked + .base-diamond {
     background-color: #ffc107;
     border-color: #e0a800;
@@ -106,25 +109,21 @@ button:hover { background-color: #0056b3; }
     transform: rotate(45deg) scale(1.12);
 }
 
-.base-item input[type="checkbox"]:checked ~ span {
-    color: #d97706;
-}
-
-/* 다이아몬드 포지셔닝 (2루가 위, 1루/3루가 양옆 아래) */
+/* 다이아몬드 포지셔닝 (정확한 내야 형태 배치) */
 #pos-2b {
     top: 0px;
-    left: 47px;
+    left: 55px;
     transform: translateX(-50%);
 }
 
-#pos-1b {
-    top: 32px;
-    right: 8px;
+#pos-3b {
+    top: 24px;
+    left: 15px;
 }
 
-#pos-3b {
-    top: 32px;
-    left: 8px;
+#pos-1b {
+    top: 24px;
+    right: 15px;
 }
 
 
@@ -348,28 +347,25 @@ button:hover { background-color: #0056b3; }
         <input type="number" id="at_bat_pitch_number" value="3" min="1" max="10">
     </div>
 
-    <!-- ⚾ 야구장 내야 다이아몬드 베이스 형태 레이아웃 -->
-    <div class="form-row">
-        <label>주자 상황:</label>
+    <!-- ⚾ 야구장 내야 다이아몬드 베이스 형태 레이아웃 (텍스트 제거 및 블록 정렬) -->
+    <div class="base-section">
+        <label>주자 상황</label>
         <div class="base-field-container">
             <div class="baseball-diamond">
                 <!-- 2루 (상단) -->
                 <label class="base-item" id="pos-2b">
                     <input type="checkbox" id="on_2b">
                     <div class="base-diamond"></div>
-                    <span>2루</span>
                 </label>
                 <!-- 3루 (좌측 하단) -->
                 <label class="base-item" id="pos-3b">
                     <input type="checkbox" id="on_3b">
                     <div class="base-diamond"></div>
-                    <span>3루</span>
                 </label>
                 <!-- 1루 (우측 하단) -->
                 <label class="base-item" id="pos-1b">
                     <input type="checkbox" id="on_1b">
                     <div class="base-diamond"></div>
-                    <span>1루</span>
                 </label>
             </div>
         </div>
