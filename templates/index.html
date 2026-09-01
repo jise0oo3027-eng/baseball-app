@@ -51,31 +51,38 @@ button {
 
 button:hover { background-color: #0056b3; }
 
-/* ---------------- ⚾ 야구장 베이스 스타일 체크박스 ---------------- */
-.base-group {
+/* ---------------- ⚾ 야구장 내야 다이아몬드 베이스 스타일 ---------------- */
+.base-field-container {
     display: flex;
-    gap: 16px;
+    justify-content: center;
+    align-items: center;
+    margin: 10px 0;
+    height: 90px;
 }
 
-.base-label {
+.baseball-diamond {
+    position: relative;
+    width: 120px;
+    height: 65px;
+}
+
+.base-item {
+    position: absolute;
     display: flex;
     flex-direction: column;
     align-items: center;
     cursor: pointer;
-    font-size: 12px;
-    font-weight: bold;
-    color: #6c757d;
-    gap: 5px;
+    gap: 3px;
 }
 
-.base-label input[type="checkbox"] {
+.base-item input[type="checkbox"] {
     display: none;
 }
 
 /* 마름모 베이스 아이콘 */
 .base-diamond {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     background-color: #ffffff;
     border: 2px solid #ced4da;
     transform: rotate(45deg);
@@ -84,18 +91,42 @@ button:hover { background-color: #0056b3; }
     box-shadow: 0 2px 4px rgba(0,0,0,0.08);
 }
 
-/* 체크(클릭)되었을 때 노란색 불 효과 */
-.base-label input[type="checkbox"]:checked + .base-diamond {
-    background-color: #ffc107; /* 야구장 골드 노란색 */
-    border-color: #e0a800;
-    box-shadow: 0 0 10px rgba(255, 193, 7, 0.7); /* 은은한 네온 광채 */
-    transform: rotate(45deg) scale(1.1); /* 살짝 커지는 효과 */
+.base-item span {
+    font-size: 11px;
+    font-weight: bold;
+    color: #6c757d;
+    transition: color 0.2s;
 }
 
-/* 체크되었을 때 텍스트 색상 포인트 */
-.base-label input[type="checkbox"]:checked ~ span {
+/* 체크(클릭)되었을 때 노란색 불 효과 및 글자 강조 */
+.base-item input[type="checkbox"]:checked + .base-diamond {
+    background-color: #ffc107;
+    border-color: #e0a800;
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.7);
+    transform: rotate(45deg) scale(1.12);
+}
+
+.base-item input[type="checkbox"]:checked ~ span {
     color: #d97706;
 }
+
+/* 다이아몬드 포지셔닝 (2루가 위, 1루/3루가 양옆 아래) */
+#pos-2b {
+    top: 0px;
+    left: 47px;
+    transform: translateX(-50%);
+}
+
+#pos-1b {
+    top: 32px;
+    right: 8px;
+}
+
+#pos-3b {
+    top: 32px;
+    left: 8px;
+}
+
 
 /* ---------------- 🎯 8분할 스트라이크 존 스타일 ---------------- */
 .zone-wrapper {
@@ -317,25 +348,30 @@ button:hover { background-color: #0056b3; }
         <input type="number" id="at_bat_pitch_number" value="3" min="1" max="10">
     </div>
 
-    <!-- ⚾ 야구장 베이스 모양 체크박스 영역 -->
+    <!-- ⚾ 야구장 내야 다이아몬드 베이스 형태 레이아웃 -->
     <div class="form-row">
         <label>주자 상황:</label>
-        <div class="base-group">
-            <label class="base-label">
-                <input type="checkbox" id="on_1b">
-                <div class="base-diamond"></div>
-                <span>1루</span>
-            </label>
-            <label class="base-label">
-                <input type="checkbox" id="on_2b">
-                <div class="base-diamond"></div>
-                <span>2루</span>
-            </label>
-            <label class="base-label">
-                <input type="checkbox" id="on_3b">
-                <div class="base-diamond"></div>
-                <span>3루</span>
-            </label>
+        <div class="base-field-container">
+            <div class="baseball-diamond">
+                <!-- 2루 (상단) -->
+                <label class="base-item" id="pos-2b">
+                    <input type="checkbox" id="on_2b">
+                    <div class="base-diamond"></div>
+                    <span>2루</span>
+                </label>
+                <!-- 3루 (좌측 하단) -->
+                <label class="base-item" id="pos-3b">
+                    <input type="checkbox" id="on_3b">
+                    <div class="base-diamond"></div>
+                    <span>3루</span>
+                </label>
+                <!-- 1루 (우측 하단) -->
+                <label class="base-item" id="pos-1b">
+                    <input type="checkbox" id="on_1b">
+                    <div class="base-diamond"></div>
+                    <span>1루</span>
+                </label>
+            </div>
         </div>
     </div>
 
