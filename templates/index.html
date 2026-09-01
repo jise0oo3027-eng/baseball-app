@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -164,6 +165,24 @@
             color: #495057;
         }
 
+        /* 이전 구종 초기화 버튼 */
+        .reset-history-button {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            padding: 8px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            width: 100%;
+        }
+
+        .reset-history-button:hover {
+            background-color: #5a6268;
+        }
+
         /* 야구장 및 카운트 통합 패널 */
         .game-status-panel {
             display: flex;
@@ -246,19 +265,38 @@
             transform: rotate(45deg) scale(1.1);
         }
 
-        #pos-2b { top: 0px; left: 45px; transform: translateX(-50%); }
-        #pos-3b { top: 20px; left: 10px; }
-        #pos-1b { top: 20px; right: 10px; }
+        #pos-2b {
+            top: 0px;
+            left: 45px;
+            transform: translateX(-50%);
+        }
 
-        /* BSO 조명형 버튼 스타일 */
+        #pos-3b {
+            top: 20px;
+            left: 10px;
+        }
+
+        #pos-1b {
+            top: 20px;
+            right: 10px;
+        }
+
+        /* BSO 조명형 버튼 */
         .bso-row {
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            gap: 15px;
+            gap: 0;
             font-size: 12px;
             font-weight: bold;
             color: #495057;
+        }
+
+        /* 라벨 영역 고정 → Ball / Strike / Out 불빛 시작 위치 정렬 */
+        .bso-row > span:first-child {
+            width: 55px;
+            text-align: left;
+            flex-shrink: 0;
         }
 
         .bso-lights {
@@ -312,7 +350,9 @@
         .zone-wrapper::before {
             content: '';
             position: absolute;
-            top: 0; bottom: 0; left: 50%;
+            top: 0;
+            bottom: 0;
+            left: 50%;
             border-left: 2px dashed rgba(0,0,0,0.2);
             transform: translateX(-50%);
             z-index: 1;
@@ -321,7 +361,9 @@
         .zone-wrapper::after {
             content: '';
             position: absolute;
-            top: 50%; left: 0; right: 0;
+            top: 50%;
+            left: 0;
+            right: 0;
             border-top: 2px dashed rgba(0,0,0,0.2);
             transform: translateY(-50%);
             z-index: 1;
@@ -341,10 +383,33 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        #CHASE_UL { top: 0; left: 0; align-items: flex-start; justify-content: flex-start; }
-        #CHASE_UR { top: 0; right: 0; align-items: flex-start; justify-content: flex-end; }
-        #CHASE_LL { bottom: 0; left: 0; align-items: flex-end; justify-content: flex-start; }
-        #CHASE_LR { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
+        #CHASE_UL {
+            top: 0;
+            left: 0;
+            align-items: flex-start;
+            justify-content: flex-start;
+        }
+
+        #CHASE_UR {
+            top: 0;
+            right: 0;
+            align-items: flex-start;
+            justify-content: flex-end;
+        }
+
+        #CHASE_LL {
+            bottom: 0;
+            left: 0;
+            align-items: flex-end;
+            justify-content: flex-start;
+        }
+
+        #CHASE_LR {
+            bottom: 0;
+            right: 0;
+            align-items: flex-end;
+            justify-content: flex-end;
+        }
 
         .strike-box {
             position: absolute;
@@ -372,10 +437,25 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        #SZ_UL { top: 0; left: 0; }
-        #SZ_UR { top: 0; right: 0; }
-        #SZ_LL { bottom: 0; left: 0; }
-        #SZ_LR { bottom: 0; right: 0; }
+        #SZ_UL {
+            top: 0;
+            left: 0;
+        }
+
+        #SZ_UR {
+            top: 0;
+            right: 0;
+        }
+
+        #SZ_LL {
+            bottom: 0;
+            left: 0;
+        }
+
+        #SZ_LR {
+            bottom: 0;
+            right: 0;
+        }
 
         .home-plate-container {
             display: flex;
@@ -445,8 +525,10 @@
         #loading-overlay {
             display: none;
             position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: rgba(0, 0, 0, 0.5);
             z-index: 9999;
             justify-content: center;
@@ -496,13 +578,14 @@
         }
     </style>
 </head>
-<body>
 
+<body>
     <!-- 로딩 화면 -->
     <div id="loading-overlay">
         <div class="spinner"></div>
         <div class="loading-text">
-            예측 결과를 불러오는 중입니다...<br><span style="font-size: 12px; opacity: 0.8;">(선수별 최초 학습 시 대략 20초 내외 소요)</span>
+            예측 결과를 불러오는 중입니다...<br>
+            <span style="font-size: 12px; opacity: 0.8;">(선수별 최초 학습 시 대략 20초 내외 소요)</span>
         </div>
     </div>
 
@@ -535,6 +618,7 @@
             <label for="score_diff">점수 차:</label>
             <input type="number" id="score_diff" value="0" min="-20" max="20">
         </div>
+
         <div class="input-help">
             ※ 투수팀 기준 (+2: 2점 앞섬, -2: 2점 뒤짐)
         </div>
@@ -543,6 +627,7 @@
             <label for="game_pitch_count">경기 투구 수:</label>
             <input type="number" id="game_pitch_count" value="0" min="0" max="200">
         </div>
+
         <div class="input-help">
             ※ 현재 투구 직전까지의 경기 전체 투구 수
         </div>
@@ -554,17 +639,16 @@
                 <div class="panel-title">주자 상황</div>
                 <div class="base-field-container">
                     <div class="baseball-diamond">
-                        <!-- 2루 -->
                         <label class="base-item" id="pos-2b" title="2루주자">
                             <input type="checkbox" id="on_2b">
                             <div class="base-diamond"></div>
                         </label>
-                        <!-- 3루 -->
+
                         <label class="base-item" id="pos-3b" title="3루주자">
                             <input type="checkbox" id="on_3b">
                             <div class="base-diamond"></div>
                         </label>
-                        <!-- 1루 -->
+
                         <label class="base-item" id="pos-1b" title="1루주자">
                             <input type="checkbox" id="on_1b">
                             <div class="base-diamond"></div>
@@ -573,9 +657,8 @@
                 </div>
             </div>
 
-            <!-- 우측: B/S 및 아웃카운트 (조명 버튼 방식) -->
+            <!-- 우측: B/S 및 아웃카운트 -->
             <div class="status-box-right">
-                <!-- Ball (최대 3개) -->
                 <div class="bso-row">
                     <span>Ball</span>
                     <div class="bso-lights" id="ball-lights">
@@ -584,7 +667,7 @@
                         <span class="bso-light ball" onclick="setBalls(3)"></span>
                     </div>
                 </div>
-                <!-- Strike (최대 2개) -->
+
                 <div class="bso-row">
                     <span>Strike</span>
                     <div class="bso-lights" id="strike-lights">
@@ -592,7 +675,7 @@
                         <span class="bso-light strike" onclick="setStrikes(2)"></span>
                     </div>
                 </div>
-                <!-- Out (최대 2개) -->
+
                 <div class="bso-row">
                     <span>Out</span>
                     <div class="bso-lights" id="out-lights">
@@ -611,24 +694,32 @@
         <!-- 이전 구종 -->
         <div class="previous-pitch-section">
             <div class="previous-pitch-title">📋 이전 구종 히스토리</div>
+
             <div class="previous-pitch-display">
                 <div class="previous-pitch-item">
                     <strong>Prev1:</strong>
                     <span id="prev1_display">없음</span>
                 </div>
+
                 <div class="previous-pitch-item">
                     <strong>Prev2:</strong>
                     <span id="prev2_display">없음</span>
                 </div>
             </div>
+
             <div class="sequence-status" id="sequence-status">
                 이전 구종 기록 없음 (초구 상태)
             </div>
+
+            <button type="button" class="reset-history-button" onclick="resetPitchHistory()">
+                🔄 이전 구종 초기화
+            </button>
         </div>
 
         <!-- 현재 실제 투구 입력 -->
         <div class="current-pitch-section">
             <div class="current-pitch-title">🎯 이번 투구 구종 (결과 입력용)</div>
+
             <select id="current_pitch">
                 <option value="">선택 안 함 (예측 후 자동 기록용)</option>
                 <option value="FF">포심 패스트볼 (FF)</option>
@@ -640,6 +731,7 @@
                 <option value="FS">스플리터 (FS)</option>
                 <option value="FC">커터 (FC)</option>
             </select>
+
             <div class="pitch-input-help">
                 * 예측 실행 후 실제 던진 구종을 선택하면 자동으로 Prev1/Prev2 히스토리가 갱신됩니다.
             </div>
@@ -650,14 +742,13 @@
 
     <!-- 스트라이크존 -->
     <h3 style="text-align: center; margin-bottom: 5px;">🎯 코스 예상 확률</h3>
+
     <div class="zone-wrapper">
-        <!-- Chase -->
         <div id="CHASE_UL" class="chase-zone">0%</div>
         <div id="CHASE_UR" class="chase-zone">0%</div>
         <div id="CHASE_LL" class="chase-zone">0%</div>
         <div id="CHASE_LR" class="chase-zone">0%</div>
 
-        <!-- Strike -->
         <div class="strike-box">
             <div id="SZ_UL" class="strike-zone">0%</div>
             <div id="SZ_UR" class="strike-zone">0%</div>
@@ -674,14 +765,20 @@
     <!-- 구종 예측 결과 -->
     <div class="results">
         <h3>📊 다음 구종 예측 확률</h3>
-        <div id="pitch-predictions" style="color: #666; font-size: 13px;">예측 버튼을 눌러주세요.</div>
-        <p style="margin-top: 15px; font-size: 12px; color: #555; line-height: 1.4;" id="accuracy-info"></p>
+
+        <div id="pitch-predictions" style="color: #666; font-size: 13px;">
+            예측 버튼을 눌러주세요.
+        </div>
+
+        <p id="accuracy-info" style="margin-top: 15px; font-size: 12px; color: #555; line-height: 1.4;"></p>
     </div>
 
     <script>
+        /* 이전 구종 히스토리 */
         let prev1Pitch = 'FIRST';
         let prev2Pitch = 'FIRST';
 
+        /* BSO 상태 */
         let currentBalls = 1;
         let currentStrikes = 2;
         let currentOuts = 0;
@@ -691,13 +788,12 @@
         const outsInput = document.getElementById('outs');
         const currentPitchSelect = document.getElementById('current_pitch');
 
-        // BSO 조명 업데이트 함수
+        /* BSO 조명 업데이트 */
         function updateBSODisplay() {
             ballsInput.value = currentBalls;
             strikesInput.value = currentStrikes;
             outsInput.value = currentOuts;
 
-            // Ball 불빛
             const ballLights = document.querySelectorAll('#ball-lights .bso-light');
             ballLights.forEach((light, idx) => {
                 if (idx < currentBalls) {
@@ -707,7 +803,6 @@
                 }
             });
 
-            // Strike 불빛
             const strikeLights = document.querySelectorAll('#strike-lights .bso-light');
             strikeLights.forEach((light, idx) => {
                 if (idx < currentStrikes) {
@@ -717,7 +812,6 @@
                 }
             });
 
-            // Out 불빛
             const outLights = document.querySelectorAll('#out-lights .bso-light');
             outLights.forEach((light, idx) => {
                 if (idx < currentOuts) {
@@ -728,24 +822,25 @@
             });
         }
 
+        /* Ball 설정 */
         function setBalls(count) {
             currentBalls = (currentBalls === count) ? count - 1 : count;
             updateBSODisplay();
         }
 
+        /* Strike 설정 */
         function setStrikes(count) {
             currentStrikes = (currentStrikes === count) ? count - 1 : count;
             updateBSODisplay();
         }
 
+        /* Out 설정 */
         function setOuts(count) {
-            let prevOuts = currentOuts;
             currentOuts = (currentOuts === count) ? count - 1 : count;
-            
-            // 아웃카운트 변동 시 이닝 전환 등으로 볼카운트 및 히스토리 초기화 예외 처리 필요시 활용 가능
             updateBSODisplay();
         }
 
+        /* 이전 구종 표시 */
         function updatePreviousPitchDisplay() {
             const prev1Display = document.getElementById('prev1_display');
             const prev2Display = document.getElementById('prev2_display');
@@ -764,20 +859,32 @@
             }
         }
 
+        /* 실제 투구 기록 */
         function recordPitch(pitch) {
             if (!pitch) return;
 
             prev2Pitch = prev1Pitch;
             prev1Pitch = pitch;
+
+            currentPitchSelect.value = '';
+            updatePreviousPitchDisplay();
+        }
+
+        /* 이전 구종 히스토리 초기화 → 초구 상태 */
+        function resetPitchHistory() {
+            prev1Pitch = 'FIRST';
+            prev2Pitch = 'FIRST';
+
             currentPitchSelect.value = '';
 
             updatePreviousPitchDisplay();
         }
 
-        // 초기 실행
+        /* 초기 실행 */
         updateBSODisplay();
         updatePreviousPitchDisplay();
 
+        /* 예측 */
         async function getPrediction() {
             const loadingOverlay = document.getElementById('loading-overlay');
             const predictButton = document.getElementById('predict-button');
@@ -813,6 +920,7 @@
                 const result = await response.json();
 
                 if (result.status === 'success') {
+                    /* 코스 예측 */
                     const zones = result.zones;
                     const maxProb = Math.max(...Object.values(zones));
 
@@ -832,12 +940,14 @@
                         }
                     }
 
+                    /* 구종 예측 결과 */
                     const predictionsDiv = document.getElementById('pitch-predictions');
                     predictionsDiv.innerHTML = '';
 
                     result.predictions.forEach(p => {
                         const item = document.createElement('div');
                         item.className = 'pitch-item';
+
                         item.innerHTML = `
                             <span class="pitch-name">${p.pitch}</span>
                             <div class="gauge-bg">
@@ -845,12 +955,16 @@
                             </div>
                             <span class="pitch-prob">${p.prob}%</span>
                         `;
+
                         predictionsDiv.appendChild(item);
                     });
 
+                    /* 정확도 표시 */
                     document.getElementById('accuracy-info').innerText =
-                        `구종 Top-1 정확도: ${result.accuracy}% | Top-2 정확도: ${result.top2_accuracy}% | 코스 정확도: ${result.zone_accuracy}% (기존 베이스라인: ${result.baseline_acc}%)`;
+                        `구종 Top-1 정확도: ${result.accuracy}% | Top-2 정확도: ${result.top2_accuracy}% | ` +
+                        `코스 정확도: ${result.zone_accuracy}% (기존 베이스라인: ${result.baseline_acc}%)`;
 
+                    /* 실제 투구 기록 */
                     if (currentPitch) {
                         recordPitch(currentPitch);
                     }
@@ -868,3 +982,4 @@
     </script>
 </body>
 </html>
+```
