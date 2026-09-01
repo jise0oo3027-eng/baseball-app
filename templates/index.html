@@ -1,521 +1,726 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>투수 구종 및 코스 예측 시스템</title>
-<style>
-body { 
-    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; 
-    max-width: 600px; 
-    margin: 20px auto; 
-    padding: 0 15px; 
-    color: #333; 
-    position: relative;
-}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>투수 구종 및 코스 예측 시스템</title>
+    <style>
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 0 15px;
+            color: #333;
+            position: relative;
+        }
 
-h1 { text-align: center; font-size: 22px; }
+        h1 {
+            text-align: center;
+            font-size: 22px;
+        }
 
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    background: #f1f3f5;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-}
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #f1f3f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
 
-.form-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
 
-label { font-weight: bold; font-size: 14px; }
-input, select, button {
-    padding: 8px;
-    font-size: 14px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-}
+        label {
+            font-weight: bold;
+            font-size: 14px;
+        }
 
-button {
-    background-color: #007bff;
-    color: white;
-    border: none;
-    cursor: pointer;
-    font-weight: bold;
-    margin-top: 10px;
-}
+        input, select, button {
+            padding: 8px;
+            font-size: 14px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
 
-button:hover { background-color: #0056b3; }
+        input {
+            width: 130px;
+            box-sizing: border-box;
+        }
 
-/* ---------------- ⚾ 야구장 내야 다이아몬드 베이스 스타일 ---------------- */
-.base-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: #ffffff;
-    padding: 12px;
-    border-radius: 6px;
-    border: 1px solid #dee2e6;
-    gap: 8px;
-}
+        select {
+            min-width: 150px;
+        }
 
-.base-field-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    height: 75px;
-}
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
 
-.baseball-diamond {
-    position: relative;
-    width: 110px;
-    height: 55px;
-}
+        button:hover {
+            background-color: #0056b3;
+        }
 
-.base-item {
-    position: absolute;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-}
+        button:disabled {
+            background-color: #999;
+            cursor: not-allowed;
+        }
 
-.base-item input[type="checkbox"] {
-    display: none;
-}
+        .input-help {
+            font-size: 11px;
+            color: #777;
+            margin-top: -5px;
+            margin-bottom: 3px;
+        }
 
-/* 마름모 베이스 아이콘 */
-.base-diamond {
-    width: 26px;
-    height: 26px;
-    background-color: #ffffff;
-    border: 2px solid #ced4da;
-    transform: rotate(45deg);
-    border-radius: 3px;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-}
+        /* 현재 투구 구종 */
+        .current-pitch-section {
+            background: #fff;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 5px;
+        }
 
-/* 체크(클릭)되었을 때 노란색 불 효과 */
-.base-item input[type="checkbox"]:checked + .base-diamond {
-    background-color: #ffc107;
-    border-color: #e0a800;
-    box-shadow: 0 0 10px rgba(255, 193, 7, 0.7);
-    transform: rotate(45deg) scale(1.12);
-}
+        .current-pitch-title {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
 
-/* 다이아몬드 포지셔닝 (정확한 내야 형태 배치) */
-#pos-2b {
-    top: 0px;
-    left: 55px;
-    transform: translateX(-50%);
-}
+        .current-pitch-section select {
+            width: 100%;
+        }
 
-#pos-3b {
-    top: 24px;
-    left: 15px;
-}
+        /* 이전 구종 표시 */
+        .previous-pitch-section {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px;
+        }
 
-#pos-1b {
-    top: 24px;
-    right: 15px;
-}
+        .previous-pitch-title {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
 
+        .previous-pitch-display {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
 
-/* ---------------- 🎯 8분할 스트라이크 존 스타일 ---------------- */
-.zone-wrapper {
-    position: relative;
-    width: 240px;
-    height: 320px;
-    border: 4px solid black;
-    margin: 20px auto 0 auto;
-    background-color: #f8f9fa;
-    box-sizing: border-box;
-}
+        .previous-pitch-item {
+            background: #e9ecef;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 13px;
+        }
 
-.zone-wrapper::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 50%;
-    border-left: 2px solid black;
-    transform: translateX(-50%);
-    z-index: 1;
-}
+        .previous-pitch-item strong {
+            margin-right: 5px;
+        }
 
-.zone-wrapper::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    border-top: 2px solid black;
-    transform: translateY(-50%);
-    z-index: 1;
-}
+        /* 야구장 내야 */
+        .base-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            gap: 8px;
+        }
 
-.chase-zone {
-    position: absolute;
-    width: 50%;
-    height: 50%;
-    display: flex;
-    font-size: 13px;
-    font-weight: bold;
-    color: #333;
-    box-sizing: border-box;
-    padding: 8px;
-    z-index: 2;
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
+        .base-field-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 75px;
+        }
 
-#CHASE_UL { top: 0; left: 0; align-items: flex-start; justify-content: flex-start; }
-#CHASE_UR { top: 0; right: 0; align-items: flex-start; justify-content: flex-end; }
-#CHASE_LL { bottom: 0; left: 0; align-items: flex-end; justify-content: flex-start; }
-#CHASE_LR { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
+        .baseball-diamond {
+            position: relative;
+            width: 110px;
+            height: 55px;
+        }
 
-.strike-box {
-    position: absolute;
-    top: 20%;
-    left: 20%;
-    width: 60%;
-    height: 60%;
-    border: 4px solid black;
-    z-index: 3;
-    box-sizing: border-box;
-}
+        .base-item {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
 
-.strike-zone {
-    position: absolute;
-    width: 50%;
-    height: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 16px;
-    color: #000;
-    box-sizing: border-box;
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
+        .base-item input[type="checkbox"] {
+            display: none;
+        }
 
-#SZ_UL { top: 0; left: 0; }
-#SZ_UR { top: 0; right: 0; }
-#SZ_LL { bottom: 0; left: 0; }
-#SZ_LR { bottom: 0; right: 0; }
+        .base-diamond {
+            width: 26px;
+            height: 26px;
+            background-color: #ffffff;
+            border: 2px solid #ced4da;
+            transform: rotate(45deg);
+            border-radius: 3px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+        }
 
-.home-plate-container {
-    display: flex;
-    justify-content: center;
-    margin-top: 6px;
-    filter: drop-shadow(0px 0px 1px #000) drop-shadow(0px 1px 1px #000);
-}
+        .base-item input[type="checkbox"]:checked + .base-diamond {
+            background-color: #ffc107;
+            border-color: #e0a800;
+            box-shadow: 0 0 10px rgba(255, 193, 7, 0.7);
+            transform: rotate(45deg) scale(1.12);
+        }
 
-.home-plate {
-    width: 140px;
-    height: 38px;
-    background-color: #ffffff;
-    clip-path: polygon(0% 0%, 100% 0%, 100% 35%, 50% 100%, 0% 35%);
-}
+        #pos-2b {
+            top: 0px;
+            left: 55px;
+            transform: translateX(-50%);
+        }
 
-.results {
-    background: #e9ecef;
-    padding: 15px;
-    border-radius: 8px;
-    margin-top: 25px;
-}
+        #pos-3b {
+            top: 24px;
+            left: 15px;
+        }
 
-.pitch-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-    font-size: 14px;
-}
+        #pos-1b {
+            top: 24px;
+            right: 15px;
+        }
 
-.pitch-name {
-    width: 45px;
-    font-weight: bold;
-}
+        /* 스트라이크존 */
+        .zone-wrapper {
+            position: relative;
+            width: 240px;
+            height: 320px;
+            border: 4px solid black;
+            margin: 20px auto 0 auto;
+            background-color: #f8f9fa;
+            box-sizing: border-box;
+        }
 
-.gauge-bg {
-    flex-grow: 1;
-    height: 14px;
-    background-color: #dee2e6;
-    border-radius: 7px;
-    margin: 0 10px;
-    overflow: hidden;
-}
+        .zone-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            border-left: 2px solid black;
+            transform: translateX(-50%);
+            z-index: 1;
+        }
 
-.gauge-fill {
-    height: 100%;
-    background-color: #007bff;
-    border-radius: 7px;
-    transition: width 0.4s ease-in-out;
-}
+        .zone-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            border-top: 2px solid black;
+            transform: translateY(-50%);
+            z-index: 1;
+        }
 
-.pitch-prob {
-    width: 50px;
-    text-align: right;
-    font-weight: bold;
-}
+        .chase-zone {
+            position: absolute;
+            width: 50%;
+            height: 50%;
+            display: flex;
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+            box-sizing: border-box;
+            padding: 8px;
+            z-index: 2;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
 
-/* ---------------- ⏳ 로딩 오버레이 스타일 ---------------- */
-#loading-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 9999;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    color: white;
-}
+        #CHASE_UL { top: 0; left: 0; align-items: flex-start; justify-content: flex-start; }
+        #CHASE_UR { top: 0; right: 0; align-items: flex-start; justify-content: flex-end; }
+        #CHASE_LL { bottom: 0; left: 0; align-items: flex-end; justify-content: flex-start; }
+        #CHASE_LR { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
 
-.spinner {
-    width: 50px;
-    height: 50px;
-    border: 5px solid #f3f3f3;
-    border-top: 5px solid #007bff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 15px;
-}
+        .strike-box {
+            position: absolute;
+            top: 20%;
+            left: 20%;
+            width: 60%;
+            height: 60%;
+            border: 4px solid black;
+            z-index: 3;
+            box-sizing: border-box;
+        }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
+        .strike-zone {
+            position: absolute;
+            width: 50%;
+            height: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            color: #000;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
 
-.loading-text {
-    font-size: 16px;
-    font-weight: bold;
-    text-align: center;
-}
-</style>
+        #SZ_UL { top: 0; left: 0; }
+        #SZ_UR { top: 0; right: 0; }
+        #SZ_LL { bottom: 0; left: 0; }
+        #SZ_LR { bottom: 0; right: 0; }
+
+        .home-plate-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 6px;
+            filter: drop-shadow(0px 0px 1px #000) drop-shadow(0px 1px 1px #000);
+        }
+
+        .home-plate {
+            width: 140px;
+            height: 38px;
+            background-color: #ffffff;
+            clip-path: polygon(0% 0%, 100% 0%, 100% 35%, 50% 100%, 0% 35%);
+        }
+
+        /* 결과 */
+        .results {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 25px;
+        }
+
+        .pitch-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .pitch-name {
+            width: 45px;
+            font-weight: bold;
+        }
+
+        .gauge-bg {
+            flex-grow: 1;
+            height: 14px;
+            background-color: #dee2e6;
+            border-radius: 7px;
+            margin: 0 10px;
+            overflow: hidden;
+        }
+
+        .gauge-fill {
+            height: 100%;
+            background-color: #007bff;
+            border-radius: 7px;
+            transition: width 0.4s ease-in-out;
+        }
+
+        .pitch-prob {
+            width: 50px;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        /* 로딩 */
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .pitch-input-help {
+            font-size: 11px;
+            color: #777;
+            text-align: right;
+            margin-top: -4px;
+        }
+
+        .sequence-status {
+            background: #e7f1ff;
+            border-radius: 6px;
+            padding: 9px;
+            font-size: 12px;
+            margin-top: 3px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
 
-<!-- 로딩 화면 오버레이 -->
-<div id="loading-overlay">
-    <div class="spinner"></div>
-    <div class="loading-text">로딩중... (선수별 최초 학습 시 대략 20초 내외 소요)</div>
-</div>
-
-<h1>⚾ 투수 구종 및 코스 예측 시스템</h1>
-
-<!-- 입력 폼 -->
-<div class="form-group">
-    <div class="form-row">
-        <label for="pitcher_id">선수 ID (MLB):</label>
-        <input type="text" id="pitcher_id" value="694973" placeholder="예: 694973">
-    </div>
-
-    <div class="form-row">
-        <label for="stand">타자 석:</label>
-        <select id="stand">
-            <option value="R">우타자 (R)</option>
-            <option value="L">좌타자 (L)</option>
-        </select>
-    </div>
-
-    <div class="form-row">
-        <label for="balls">볼 Count:</label>
-        <input type="number" id="balls" value="1" min="0" max="3">
-    </div>
-
-    <div class="form-row">
-        <label for="strikes">스트라이크 Count:</label>
-        <input type="number" id="strikes" value="2" min="0" max="2">
-    </div>
-
-    <div class="form-row">
-        <label for="at_bat_pitch_number">타석 내 투구 수:</label>
-        <input type="number" id="at_bat_pitch_number" value="3" min="1" max="10">
-    </div>
-
-    <!-- ⚾ 야구장 내야 다이아몬드 베이스 형태 레이아웃 (텍스트 제거 및 블록 정렬) -->
-    <div class="base-section">
-        <label>주자 상황</label>
-        <div class="base-field-container">
-            <div class="baseball-diamond">
-                <!-- 2루 (상단) -->
-                <label class="base-item" id="pos-2b">
-                    <input type="checkbox" id="on_2b">
-                    <div class="base-diamond"></div>
-                </label>
-                <!-- 3루 (좌측 하단) -->
-                <label class="base-item" id="pos-3b">
-                    <input type="checkbox" id="on_3b">
-                    <div class="base-diamond"></div>
-                </label>
-                <!-- 1루 (우측 하단) -->
-                <label class="base-item" id="pos-1b">
-                    <input type="checkbox" id="on_1b">
-                    <div class="base-diamond"></div>
-                </label>
-            </div>
+    <!-- 로딩 화면 -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">
+            로딩중... (선수별 최초 학습 시 대략 20초 내외 소요)
         </div>
     </div>
 
-    <div class="form-row">
-        <label for="prev1_pitch">직전 1구 (Prev1):</label>
-        <select id="prev1_pitch">
-            <option value="FF">포심 (FF)</option>
-            <option value="SL">슬라이더 (SL)</option>
-            <option value="CH">체인지업 (CH)</option>
-            <option value="CU">커브 (CU)</option>
-            <option value="KC">너클 커브 (KC)</option>
-            <option value="SI">싱커 (SI)</option>
-            <option value="FS">스플리터 (FS)</option>
-            <option value="FC">커터 (FC)</option>
-            <option value="FIRST">없음 (초구)</option>
-        </select>
+    <h1>⚾ 투수 구종 및 코스 예측 시스템</h1>
+
+    <!-- 입력 폼 -->
+    <div class="form-group">
+        <!-- 선수 -->
+        <div class="form-row">
+            <label for="pitcher_id">선수 ID (MLB):</label>
+            <input type="text" id="pitcher_id" value="694973" placeholder="예: 694973">
+        </div>
+
+        <!-- 타자 좌우 -->
+        <div class="form-row">
+            <label for="stand">타자석:</label>
+            <select id="stand">
+                <option value="R">우타자 (R)</option>
+                <option value="L">좌타자 (L)</option>
+            </select>
+        </div>
+
+        <!-- 경기 상황 -->
+        <div class="form-row">
+            <label for="inning">이닝:</label>
+            <input type="number" id="inning" value="1" min="1" max="30">
+        </div>
+
+        <div class="form-row">
+            <label for="score_diff">점수 차:</label>
+            <input type="number" id="score_diff" value="0" min="-20" max="20">
+        </div>
+
+        <div class="input-help">
+            ※ 투수팀 기준입니다. +2 = 투수팀 2점 앞섬, -2 = 투수팀 2점 뒤짐
+        </div>
+
+        <div class="form-row">
+            <label for="game_pitch_count">경기 투구 수:</label>
+            <input type="number" id="game_pitch_count" value="0" min="0" max="200">
+        </div>
+
+        <div class="input-help">
+            ※ 현재 투구 직전까지의 경기 전체 투구 수
+        </div>
+
+        <!-- 아웃카운트 -->
+        <div class="form-row">
+            <label for="outs">아웃 카운트:</label>
+            <select id="outs">
+                <option value="0">0 Out</option>
+                <option value="1">1 Out</option>
+                <option value="2">2 Out</option>
+            </select>
+        </div>
+
+        <!-- 볼카운트 -->
+        <div class="form-row">
+            <label for="balls">볼 Count:</label>
+            <input type="number" id="balls" value="1" min="0" max="3">
+        </div>
+
+        <div class="form-row">
+            <label for="strikes">스트라이크 Count:</label>
+            <input type="number" id="strikes" value="2" min="0" max="2">
+        </div>
+
+        <div class="form-row">
+            <label for="at_bat_pitch_number">타석 내 투구 수:</label>
+            <input type="number" id="at_bat_pitch_number" value="1" min="1" max="10">
+        </div>
+
+        <!-- 주자 상황 -->
+        <div class="base-section">
+            <label>주자 상황</label>
+            <div class="base-field-container">
+                <div class="baseball-diamond">
+                    <!-- 2루 -->
+                    <label class="base-item" id="pos-2b">
+                        <input type="checkbox" id="on_2b">
+                        <div class="base-diamond"></div>
+                    </label>
+                    <!-- 3루 -->
+                    <label class="base-item" id="pos-3b">
+                        <input type="checkbox" id="on_3b">
+                        <div class="base-diamond"></div>
+                    </label>
+                    <!-- 1루 -->
+                    <label class="base-item" id="pos-1b">
+                        <input type="checkbox" id="on_1b">
+                        <div class="base-diamond"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 이전 구종 -->
+        <div class="previous-pitch-section">
+            <div class="previous-pitch-title">📋 이전 구종</div>
+            <div class="previous-pitch-display">
+                <div class="previous-pitch-item">
+                    <strong>Prev1:</strong>
+                    <span id="prev1_display">없음</span>
+                </div>
+                <div class="previous-pitch-item">
+                    <strong>Prev2:</strong>
+                    <span id="prev2_display">없음</span>
+                </div>
+            </div>
+            <div class="sequence-status" id="sequence-status">
+                현재 타석 초구 — 이전 구종 없음
+            </div>
+        </div>
+
+        <!-- 현재 실제 투구 입력 -->
+        <div class="current-pitch-section">
+            <div class="current-pitch-title">🎯 이번 투구 구종</div>
+            <select id="current_pitch">
+                <option value="">선택 안 함</option>
+                <option value="FF">포심 (FF)</option>
+                <option value="SL">슬라이더 (SL)</option>
+                <option value="CH">체인지업 (CH)</option>
+                <option value="CU">커브 (CU)</option>
+                <option value="KC">너클 커브 (KC)</option>
+                <option value="SI">싱커 (SI)</option>
+                <option value="FS">스플리터 (FS)</option>
+                <option value="FC">커터 (FC)</option>
+            </select>
+            <div class="pitch-input-help">
+                예측 후 실제 던진 구종을 선택하면 자동으로 Prev1/Prev2가 갱신됩니다.
+            </div>
+        </div>
+
+        <button id="predict-button" onclick="getPrediction()">다음 구종 예측하기</button>
     </div>
 
-    <div class="form-row">
-        <label for="prev2_pitch">직전 2구 (Prev2):</label>
-        <select id="prev2_pitch">
-            <option value="SL">슬라이더 (SL)</option>
-            <option value="FF">포심 (FF)</option>
-            <option value="CH">체인지업 (CH)</option>
-            <option value="CU">커브 (CU)</option>
-            <option value="KC">너클 커브 (KC)</option>
-            <option value="SI">싱커 (SI)</option>
-            <option value="FS">스플리터 (FS)</option>
-            <option value="FC">커터 (FC)</option>
-            <option value="FIRST">없음 (1~2구째)</option>
-        </select>
+    <!-- 스트라이크존 -->
+    <h3 style="text-align: center;">🎯 코스 예상 확률</h3>
+    <div class="zone-wrapper">
+        <!-- Chase -->
+        <div id="CHASE_UL" class="chase-zone">0%</div>
+        <div id="CHASE_UR" class="chase-zone">0%</div>
+        <div id="CHASE_LL" class="chase-zone">0%</div>
+        <div id="CHASE_LR" class="chase-zone">0%</div>
+
+        <!-- Strike -->
+        <div class="strike-box">
+            <div id="SZ_UL" class="strike-zone">0%</div>
+            <div id="SZ_UR" class="strike-zone">0%</div>
+            <div id="SZ_LL" class="strike-zone">0%</div>
+            <div id="SZ_LR" class="strike-zone">0%</div>
+        </div>
     </div>
 
-    <button onclick="getPrediction()">예측하기</button>
-</div>
-
-<!-- 스트라이크존 및 홈플레이트 시각화 영역 -->
-<h3 style="text-align: center;">🎯 코스 예상 확률</h3>
-<div class="zone-wrapper">
-    <!-- Chase Zones (4개) -->
-    <div id="CHASE_UL" class="chase-zone">0%</div>
-    <div id="CHASE_UR" class="chase-zone">0%</div>
-    <div id="CHASE_LL" class="chase-zone">0%</div>
-    <div id="CHASE_LR" class="chase-zone">0%</div>
-
-    <!-- Strike Zones (4개) -->
-    <div class="strike-box">
-        <div id="SZ_UL" class="strike-zone">0%</div>
-        <div id="SZ_UR" class="strike-zone">0%</div>
-        <div id="SZ_LL" class="strike-zone">0%</div>
-        <div id="SZ_LR" class="strike-zone">0%</div>
+    <!-- 홈플레이트 -->
+    <div class="home-plate-container">
+        <div class="home-plate"></div>
     </div>
-</div>
 
-<!-- 하단 홈플레이트 -->
-<div class="home-plate-container">
-    <div class="home-plate"></div>
-</div>
-
-<!-- 구종 예측 결과 영역 -->
-<div class="results">
-    <h3>📊 구종 예측 확률</h3>
-    <div id="pitch-predictions">
-        예측 버튼을 눌러주세요.
+    <!-- 구종 예측 결과 -->
+    <div class="results">
+        <h3>📊 다음 구종 예측 확률</h3>
+        <div id="pitch-predictions">예측 버튼을 눌러주세요.</div>
+        <p style="margin-top: 15px; font-size: 12px; color: #666;" id="accuracy-info"></p>
     </div>
-    <p style="margin-top: 15px; font-size: 12px; color: #666;" id="accuracy-info"></p>
-</div>
 
-<!-- JavaScript 연동 -->
-<script>
-async function getPrediction() {
-    const loadingOverlay = document.getElementById('loading-overlay');
-    loadingOverlay.style.display = 'flex'; // 로딩 화면 켜기
+    <script>
+        let prev1Pitch = 'FIRST';
+        let prev2Pitch = 'FIRST';
 
-    const payload = {
-        pitcher_id: document.getElementById('pitcher_id').value,
-        stand: document.getElementById('stand').value,
-        balls: parseInt(document.getElementById('balls').value),
-        strikes: parseInt(document.getElementById('strikes').value),
-        at_bat_pitch_number: parseInt(document.getElementById('at_bat_pitch_number').value),
-        on_1b: document.getElementById('on_1b').checked ? 1 : 0,
-        on_2b: document.getElementById('on_2b').checked ? 1 : 0,
-        on_3b: document.getElementById('on_3b').checked ? 1 : 0,
-        prev1_pitch: document.getElementById('prev1_pitch').value,
-        prev2_pitch: document.getElementById('prev2_pitch').value
-    };
+        const outsSelect = document.getElementById('outs');
+        const ballsInput = document.getElementById('balls');
+        const strikesInput = document.getElementById('strikes');
+        const pitchNumberInput = document.getElementById('at_bat_pitch_number');
+        const currentPitchSelect = document.getElementById('current_pitch');
 
-    try {
-        const response = await fetch('/predict', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+        function updatePreviousPitchDisplay() {
+            const prev1Display = document.getElementById('prev1_display');
+            const prev2Display = document.getElementById('prev2_display');
+
+            prev1Display.innerText = prev1Pitch === 'FIRST' ? '없음' : prev1Pitch;
+            prev2Display.innerText = prev2Pitch === 'FIRST' ? '없음' : prev2Pitch;
+
+            let pitchNumber = parseInt(pitchNumberInput.value) || 1;
+            const status = document.getElementById('sequence-status');
+
+            if (pitchNumber === 1) {
+                status.innerText = '현재 타석 초구 — 이전 구종 없음';
+            } else if (pitchNumber === 2) {
+                status.innerText = `현재 타석 2구째 — Prev1: ${prev1Pitch}`;
+            } else {
+                status.innerText = `현재 타석 ${pitchNumber}구째 — Prev1: ${prev1Pitch} | Prev2: ${prev2Pitch}`;
+            }
+        }
+
+        function recordPitch(pitch) {
+            if (!pitch) return;
+
+            prev2Pitch = prev1Pitch;
+            prev1Pitch = pitch;
+
+            let currentNumber = parseInt(pitchNumberInput.value) || 1;
+            pitchNumberInput.value = Math.min(currentNumber + 1, 10);
+            currentPitchSelect.value = '';
+
+            updatePreviousPitchDisplay();
+        }
+
+        outsSelect.addEventListener('change', function () {
+            ballsInput.value = 0;
+            strikesInput.value = 0;
+            pitchNumberInput.value = 1;
+            prev1Pitch = 'FIRST';
+            prev2Pitch = 'FIRST';
+            currentPitchSelect.value = '';
+            updatePreviousPitchDisplay();
         });
 
-        const result = await response.json();
+        pitchNumberInput.addEventListener('input', function () {
+            let number = parseInt(this.value) || 1;
+            if (number <= 1) {
+                prev1Pitch = 'FIRST';
+                prev2Pitch = 'FIRST';
+            }
+            updatePreviousPitchDisplay();
+        });
 
-        if (result.status === 'success') {
-            /* 1. 코스 확률 렌더링 */
-            const zones = result.zones;
-            const maxProb = Math.max(...Object.values(zones));
-            for (const [zoneId, prob] of Object.entries(zones)) {
-                const el = document.getElementById(zoneId);
-                if (el) {
-                    el.innerText = `${prob}%`;
-                    if (prob > 0 && maxProb > 0) {
-                        const alpha = (prob / maxProb) * 0.85;
-                        el.style.backgroundColor = `rgba(255, 69, 58, ${alpha})`;
-                        if (alpha > 0.45) {
-                            el.style.color = '#ffffff';
+        updatePreviousPitchDisplay();
+
+        async function getPrediction() {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const predictButton = document.getElementById('predict-button');
+
+            loadingOverlay.style.display = 'flex';
+            predictButton.disabled = true;
+
+            const currentPitch = currentPitchSelect.value;
+
+            const payload = {
+                pitcher_id: document.getElementById('pitcher_id').value,
+                stand: document.getElementById('stand').value,
+                balls: parseInt(ballsInput.value),
+                strikes: parseInt(strikesInput.value),
+                at_bat_pitch_number: parseInt(pitchNumberInput.value),
+                inning: parseInt(document.getElementById('inning').value),
+                score_diff: parseInt(document.getElementById('score_diff').value),
+                game_pitch_count: parseInt(document.getElementById('game_pitch_count').value),
+                outs: parseInt(outsSelect.value),
+                on_1b: document.getElementById('on_1b').checked ? 1 : 0,
+                on_2b: document.getElementById('on_2b').checked ? 1 : 0,
+                on_3b: document.getElementById('on_3b').checked ? 1 : 0,
+                prev1_pitch: prev1Pitch,
+                prev2_pitch: prev2Pitch
+            };
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    const zones = result.zones;
+                    const maxProb = Math.max(...Object.values(zones));
+
+                    for (const [zoneId, prob] of Object.entries(zones)) {
+                        const el = document.getElementById(zoneId);
+                        if (!el) continue;
+
+                        el.innerText = `${prob}%`;
+
+                        if (prob > 0 && maxProb > 0) {
+                            const alpha = (prob / maxProb) * 0.85;
+                            el.style.backgroundColor = `rgba(255, 69, 58, ${alpha})`;
+                            el.style.color = alpha > 0.45 ? '#ffffff' : '#000000';
                         } else {
+                            el.style.backgroundColor = 'transparent';
                             el.style.color = '#000000';
                         }
-                    } else {
-                        el.style.backgroundColor = 'transparent';
-                        el.style.color = '#000000';
                     }
+
+                    const predictionsDiv = document.getElementById('pitch-predictions');
+                    predictionsDiv.innerHTML = '';
+
+                    result.predictions.forEach(p => {
+                        const item = document.createElement('div');
+                        item.className = 'pitch-item';
+                        item.innerHTML = `
+                            <span class="pitch-name">${p.pitch}</span>
+                            <div class="gauge-bg">
+                                <div class="gauge-fill" style="width: ${p.prob}%;"></div>
+                            </div>
+                            <span class="pitch-prob">${p.prob}%</span>
+                        `;
+                        predictionsDiv.appendChild(item);
+                    });
+
+                    document.getElementById('accuracy-info').innerText =
+                        `구종 Top-1 정확도: ${result.accuracy}% | Top-2 정확도: ${result.top2_accuracy}% | 코스 정확도: ${result.zone_accuracy}% (기존 베이스라인: ${result.baseline_acc}%)`;
+
+                    if (currentPitch) {
+                        recordPitch(currentPitch);
+                    }
+                } else {
+                    alert('오류: ' + result.message);
                 }
+            } catch (error) {
+                console.error('API 통신 에러:', error);
+                alert('예측 서버와 통신 중 에러가 발생했습니다.');
+            } finally {
+                loadingOverlay.style.display = 'none';
+                predictButton.disabled = false;
             }
-
-            /* 2. 구종 예측 확률 게이지 */
-            const predictionsDiv = document.getElementById('pitch-predictions');
-            predictionsDiv.innerHTML = '';
-            result.predictions.forEach(p => {
-                const item = document.createElement('div');
-                item.className = 'pitch-item';
-                item.innerHTML = `
-                    <span class="pitch-name">${p.pitch}</span>
-                    <div class="gauge-bg">
-                        <div class="gauge-fill" style="width: ${p.prob}%;"></div>
-                    </div>
-                    <span class="pitch-prob">${p.prob}%</span>
-                `;
-                predictionsDiv.appendChild(item);
-            });
-
-            /* 3. 정확도 정보 */
-            document.getElementById('accuracy-info').innerText = 
-                `구종 Top-1 정확도: ${result.accuracy}% | ` +
-                `Top-2 정확도: ${result.top2_accuracy}% | ` +
-                `코스 정확도: ${result.zone_accuracy}% ` +
-                `(기존 베이스라인: ${result.baseline_acc}%)`;
-
-        } else {
-            alert('오류: ' + result.message);
         }
-    } catch (error) {
-        console.error('API 통신 에러:', error);
-        alert('예측 서버와 통신 중 에러가 발생했습니다.');
-    } finally {
-        loadingOverlay.style.display = 'none'; // 성공하든 실패하든 로딩 화면 끄기
-    }
-}
-</script>
-
+    </script>
 </body>
 </html>
