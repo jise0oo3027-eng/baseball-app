@@ -75,7 +75,7 @@ def categorize_zone_dynamic(row):
 # 모델 학습
 # ============================================================
 def train_and_save_models(pitcher_id):
-    start_date = '2023-01-01'
+    start_date = '2025-01-01'
     end_date = '2026-08-31'
 
     try:
