@@ -129,19 +129,44 @@
         }
 
         .previous-pitch-item strong {
-            margin-right: 5px;
+            margin-righ: 5px;
         }
 
-        /* 야구장 내야 */
-        .base-section {
+        /* 야구장 및 카운트 통합 패널 */
+        .game-status-panel {
             display: flex;
-            flex-direction: column;
-            align-items: center;
             background: #ffffff;
             padding: 12px;
             border-radius: 6px;
             border: 1px solid #dee2e6;
-            gap: 8px;
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        .status-box-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #dee2e6;
+            padding-right: 8px;
+        }
+
+        .status-box-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 6px;
+            padding-left: 4px;
+        }
+
+        .panel-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 6px;
+            text-align: center;
         }
 
         .base-field-container {
@@ -149,13 +174,13 @@
             justify-content: center;
             align-items: center;
             width: 100%;
-            height: 75px;
+            height: 65px;
         }
 
         .baseball-diamond {
             position: relative;
-            width: 110px;
-            height: 55px;
+            width: 90px;
+            height: 45px;
         }
 
         .base-item {
@@ -171,8 +196,8 @@
         }
 
         .base-diamond {
-            width: 26px;
-            height: 26px;
+            width: 22px;
+            height: 22px;
             background-color: #ffffff;
             border: 2px solid #ced4da;
             transform: rotate(45deg);
@@ -184,24 +209,70 @@
         .base-item input[type="checkbox"]:checked + .base-diamond {
             background-color: #ffc107;
             border-color: #e0a800;
-            box-shadow: 0 0 10px rgba(255, 193, 7, 0.7);
+            box-shadow: 0 0 8px rgba(255, 193, 7, 0.7);
             transform: rotate(45deg) scale(1.12);
         }
 
         #pos-2b {
             top: 0px;
-            left: 55px;
+            left: 45px;
             transform: translateX(-50%);
         }
 
         #pos-3b {
-            top: 24px;
-            left: 15px;
+            top: 20px;
+            left: 12px;
         }
 
         #pos-1b {
-            top: 24px;
-            right: 15px;
+            top: 20px;
+            right: 12px;
+        }
+
+        /* BSO 조명형 버튼 스타일 */
+        .bso-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .bso-lights {
+            display: flex;
+            gap: 4px;
+        }
+
+        .bso-light {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #e9ecef;
+            border: 1px solid #ced4da;
+            display: inline-block;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        /* Ball: 초록색 불 */
+        .bso-light.ball.active {
+            background-color: #28a745;
+            border-color: #1e7e34;
+            box-shadow: 0 0 6px rgba(40, 167, 69, 0.6);
+        }
+
+        /* Strike: 노란색 불 */
+        .bso-light.strike.active {
+            background-color: #ffc107;
+            border-color: #d39e00;
+            box-shadow: 0 0 6px rgba(255, 193, 7, 0.6);
+        }
+
+        /* Out: 빨간색 불 */
+        .bso-light.out.active {
+            background-color: #dc3545;
+            border-color: #bd2130;
+            box-shadow: 0 0 6px rgba(220, 53, 69, 0.6);
         }
 
         /* 스트라이크존 */
@@ -450,55 +521,71 @@
             ※ 현재 투구 직전까지의 경기 전체 투구 수
         </div>
 
-        <!-- 아웃카운트 -->
-        <div class="form-row">
-            <label for="outs">아웃 카운트:</label>
-            <select id="outs">
-                <option value="0">0 Out</option>
-                <option value="1">1 Out</option>
-                <option value="2">2 Out</option>
-            </select>
-        </div>
-
-        <!-- 볼카운트 -->
-        <div class="form-row">
-            <label for="balls">볼 Count:</label>
-            <input type="number" id="balls" value="1" min="0" max="3">
-        </div>
-
-        <div class="form-row">
-            <label for="strikes">스트라이크 Count:</label>
-            <input type="number" id="strikes" value="2" min="0" max="2">
-        </div>
-
         <div class="form-row">
             <label for="at_bat_pitch_number">타석 내 투구 수:</label>
             <input type="number" id="at_bat_pitch_number" value="1" min="1" max="10">
         </div>
 
-        <!-- 주자 상황 -->
-        <div class="base-section">
-            <label>주자 상황</label>
-            <div class="base-field-container">
-                <div class="baseball-diamond">
-                    <!-- 2루 -->
-                    <label class="base-item" id="pos-2b">
-                        <input type="checkbox" id="on_2b">
-                        <div class="base-diamond"></div>
-                    </label>
-                    <!-- 3루 -->
-                    <label class="base-item" id="pos-3b">
-                        <input type="checkbox" id="on_3b">
-                        <div class="base-diamond"></div>
-                    </label>
-                    <!-- 1루 -->
-                    <label class="base-item" id="pos-1b">
-                        <input type="checkbox" id="on_1b">
-                        <div class="base-diamond"></div>
-                    </label>
+        <!-- 주자 상황 및 BSO 통합 패널 -->
+        <div class="game-status-panel">
+            <!-- 좌측: 주자 상황 -->
+            <div class="status-box-left">
+                <div class="panel-title">주자 상황</div>
+                <div class="base-field-container">
+                    <div class="baseball-diamond">
+                        <!-- 2루 -->
+                        <label class="base-item" id="pos-2b">
+                            <input type="checkbox" id="on_2b">
+                            <div class="base-diamond"></div>
+                        </label>
+                        <!-- 3루 -->
+                        <label class="base-item" id="pos-3b">
+                            <input type="checkbox" id="on_3b">
+                            <div class="base-diamond"></div>
+                        </label>
+                        <!-- 1루 -->
+                        <label class="base-item" id="pos-1b">
+                            <input type="checkbox" id="on_1b">
+                            <div class="base-diamond"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 우측: B/S 및 아웃카운트 (조명 버튼 방식) -->
+            <div class="status-box-right">
+                <!-- Ball (최대 3개) -->
+                <div class="bso-row">
+                    <span>Ball</span>
+                    <div class="bso-lights" id="ball-lights">
+                        <span class="bso-light ball" onclick="setBalls(1)"></span>
+                        <span class="bso-light ball" onclick="setBalls(2)"></span>
+                        <span class="bso-light ball" onclick="setBalls(3)"></span>
+                    </div>
+                </div>
+                <!-- Strike (최대 2개) -->
+                <div class="bso-row">
+                    <span>Strike</span>
+                    <div class="bso-lights" id="strike-lights">
+                        <span class="bso-light strike" onclick="setStrikes(1)"></span>
+                        <span class="bso-light strike" onclick="setStrikes(2)"></span>
+                    </div>
+                </div>
+                <!-- Out (최대 2개) -->
+                <div class="bso-row">
+                    <span>Out</span>
+                    <div class="bso-lights" id="out-lights">
+                        <span class="bso-light out" onclick="setOuts(1)"></span>
+                        <span class="bso-light out" onclick="setOuts(2)"></span>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- 백엔드 호환용 숨김 인풋 -->
+        <input type="hidden" id="balls" value="1">
+        <input type="hidden" id="strikes" value="2">
+        <input type="hidden" id="outs" value="0">
 
         <!-- 이전 구종 -->
         <div class="previous-pitch-section">
@@ -574,11 +661,80 @@
         let prev1Pitch = 'FIRST';
         let prev2Pitch = 'FIRST';
 
-        const outsSelect = document.getElementById('outs');
+        let currentBalls = 1;
+        let currentStrikes = 2;
+        let currentOuts = 0;
+
         const ballsInput = document.getElementById('balls');
         const strikesInput = document.getElementById('strikes');
+        const outsInput = document.getElementById('outs');
         const pitchNumberInput = document.getElementById('at_bat_pitch_number');
         const currentPitchSelect = document.getElementById('current_pitch');
+
+        // BSO 조명 업데이트 함수
+        function updateBSODisplay() {
+            ballsInput.value = currentBalls;
+            strikesInput.value = currentStrikes;
+            outsInput.value = currentOuts;
+
+            // Ball 불빛 (누른 개수까지만 활성화, 0개면 모두 비활성화)
+            const ballLights = document.querySelectorAll('#ball-lights .bso-light');
+            ballLights.forEach((light, idx) => {
+                if (idx < currentBalls) {
+                    light.classList.add('active');
+                } else {
+                    light.classList.remove('active');
+                }
+            });
+
+            // Strike 불빛
+            const strikeLights = document.querySelectorAll('#strike-lights .bso-light');
+            strikeLights.forEach((light, idx) => {
+                if (idx < currentStrikes) {
+                    light.classList.add('active');
+                } else {
+                    light.classList.remove('active');
+                }
+            });
+
+            // Out 불빛
+            const outLights = document.querySelectorAll('#out-lights .bso-light');
+            outLights.forEach((light, idx) => {
+                if (idx < currentOuts) {
+                    light.classList.add('active');
+                } else {
+                    light.classList.remove('active');
+                }
+            });
+        }
+
+        // 클릭 토글 로직 (이미 켜진 개수만큼 누르면 0개로 리셋, 아니면 해당 개수로 설정)
+        function setBalls(count) {
+            currentBalls = (currentBalls === count) ? count - 1 : count;
+            updateBSODisplay();
+        }
+
+        function setStrikes(count) {
+            currentStrikes = (currentStrikes === count) ? count - 1 : count;
+            updateBSODisplay();
+        }
+
+        function setOuts(count) {
+            // 아웃카운트가 바뀌면 새로운 타석으로 간주하여 초기화
+            let prevOuts = currentOuts;
+            currentOuts = (currentOuts === count) ? count - 1 : count;
+            
+            if (currentOuts !== prevOuts) {
+                currentBalls = 0;
+                currentStrikes = 0;
+                pitchNumberInput.value = 1;
+                prev1Pitch = 'FIRST';
+                prev2Pitch = 'FIRST';
+                currentPitchSelect.value = '';
+                updatePreviousPitchDisplay();
+            }
+            updateBSODisplay();
+        }
 
         function updatePreviousPitchDisplay() {
             const prev1Display = document.getElementById('prev1_display');
@@ -612,16 +768,6 @@
             updatePreviousPitchDisplay();
         }
 
-        outsSelect.addEventListener('change', function () {
-            ballsInput.value = 0;
-            strikesInput.value = 0;
-            pitchNumberInput.value = 1;
-            prev1Pitch = 'FIRST';
-            prev2Pitch = 'FIRST';
-            currentPitchSelect.value = '';
-            updatePreviousPitchDisplay();
-        });
-
         pitchNumberInput.addEventListener('input', function () {
             let number = parseInt(this.value) || 1;
             if (number <= 1) {
@@ -631,6 +777,8 @@
             updatePreviousPitchDisplay();
         });
 
+        // 초기 실행
+        updateBSODisplay();
         updatePreviousPitchDisplay();
 
         async function getPrediction() {
@@ -651,7 +799,7 @@
                 inning: parseInt(document.getElementById('inning').value),
                 score_diff: parseInt(document.getElementById('score_diff').value),
                 game_pitch_count: parseInt(document.getElementById('game_pitch_count').value),
-                outs: parseInt(outsSelect.value),
+                outs: parseInt(outsInput.value),
                 on_1b: document.getElementById('on_1b').checked ? 1 : 0,
                 on_2b: document.getElementById('on_2b').checked ? 1 : 0,
                 on_3b: document.getElementById('on_3b').checked ? 1 : 0,
