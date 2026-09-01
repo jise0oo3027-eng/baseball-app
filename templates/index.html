@@ -338,11 +338,6 @@ button:hover { background-color: #0056b3; }
     </div>
 
     <div class="form-row">
-        <label for="outs_when_up">아웃 카운트:</label>
-        <input type="number" id="outs_when_up" value="0" min="0" max="2">
-    </div>
-
-    <div class="form-row">
         <label for="at_bat_pitch_number">타석 내 투구 수:</label>
         <input type="number" id="at_bat_pitch_number" value="3" min="1" max="10">
     </div>
@@ -447,7 +442,6 @@ async function getPrediction() {
         stand: document.getElementById('stand').value,
         balls: parseInt(document.getElementById('balls').value),
         strikes: parseInt(document.getElementById('strikes').value),
-        outs_when_up: parseInt(document.getElementById('outs_when_up').value),
         at_bat_pitch_number: parseInt(document.getElementById('at_bat_pitch_number').value),
         on_1b: document.getElementById('on_1b').checked ? 1 : 0,
         on_2b: document.getElementById('on_2b').checked ? 1 : 0,
