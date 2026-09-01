@@ -1,6 +1,11 @@
 <!DOCTYPE html>
-
-<html lang="ko"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>투수 구종 및 코스 예측 시스템</title> <style> body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; max-width: 600px; margin: 20px auto; padding: 0 15px; color: #333; }
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>투수 구종 및 코스 예측 시스템</title>
+<style>
+body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; max-width: 600px; margin: 20px auto; padding: 0 15px; color: #333; }
 
 h1 { text-align: center; font-size: 22px; }
 
@@ -38,6 +43,16 @@ button {
 }
 
 button:hover { background-color: #0056b3; }
+
+/* 로딩 메시지 스타일 */
+#loading {
+  display: none;
+  text-align: center;
+  margin: 15px 0;
+  font-weight: bold;
+  color: #007bff;
+  font-size: 14px;
+}
 
 /* 주자 체크박스 그룹 스타일 */
 .checkbox-group {
@@ -212,14 +227,14 @@ button:hover { background-color: #0056b3; }
   font-weight: bold;
 }
 
-</style> </head>
+</style>
+</head>
 
 <body>
 
 <h1>⚾ 투수 구종 및 코스 예측 시스템</h1>
 
 <!-- 입력 폼 -->
-
 <div class="form-group">
 
 <div class="form-row">
@@ -291,49 +306,140 @@ button:hover { background-color: #0056b3; }
 
 <button onclick="getPrediction()">예측하기</button>
 
+<!-- 로딩 안내 메시지 영역 -->
+<div id="loading">
+    🔄 데이터를 수집하고 모델을 학습 중입니다. 잠시만 기다려주세요...
+</div>
+
 </div>
 
 <!-- 스트라이크존 및 홈플레이트 시각화 영역 -->
-
 <h3 style="text-align: center;">🎯 코스 예상 확률</h3>
 
 <div class="zone-wrapper">
+  <!-- Chase Zones (4개) -->
+  <div id="CHASE_UL" class="chase-zone">0%</div>
+  <div id="CHASE_UR" class="chase-zone">0%</div>
+  <div id="CHASE_LL" class="chase-zone">0%</div>
+  <div id="CHASE_LR" class="chase-zone">0%</div>
 
-<!-- Chase Zones (4개) -->
-<div id="CHASE_UL" class="chase-zone">0%</div>
-<div id="CHASE_UR" class="chase-zone">0%</div>
-<div id="CHASE_LL" class="chase-zone">0%</div>
-<div id="CHASE_LR" class="chase-zone">0%</div>
-
-<!-- Strike Zones (4개) -->
-<div class="strike-box">
-  <div id="SZ_UL" class="strike-zone">0%</div>
-  <div id="SZ_UR" class="strike-zone">0%</div>
-  <div id="SZ_LL" class="strike-zone">0%</div>
-  <div id="SZ_LR" class="strike-zone">0%</div>
-</div>
-
+  <!-- Strike Zones (4개) -->
+  <div class="strike-box">
+    <div id="SZ_UL" class="strike-zone">0%</div>
+    <div id="SZ_UR" class="strike-zone">0%</div>
+    <div id="SZ_LL" class="strike-zone">0%</div>
+    <div id="SZ_LR" class="strike-zone">0%</div>
+  </div>
 </div>
 
 <!-- 하단 홈플레이트 -->
-
-<div class="home-plate-container"> <div class="home-plate"></div> </div>
-
-<!-- 구종 예측 결과 영역 -->
-
-<div class="results"> <h3>📊 구종 예측 확률</h3>
-
-<div id="pitch-predictions">
-  예측 버튼을 눌러주세요.
+<div class="home-plate-container">
+  <div class="home-plate"></div>
 </div>
 
-<p style="margin-top: 15px; font-size: 12px; color: #666;" id="accuracy-info"></p>
-
+<!-- 구종 예측 결과 영역 -->
+<div class="results">
+  <h3>📊 구종 예측 확률</h3>
+  <div id="pitch-predictions">
+    예측 버튼을 눌러주세요.
+  </div>
+  <p style="margin-top: 15px; font-size: 12px; color: #666;" id="accuracy-info"></p>
 </div>
 
 <!-- JavaScript 연동 -->
+<script>
+async function getPrediction() {
+    const loadingEl = document.getElementById('loading');
+    loadingEl.style.display = 'block'; // 로딩 시작 (메시지 표시)
 
-<script> async function getPrediction() { const payload = { pitcher_id: document.getElementById('pitcher_id').value, stand: document.getElementById('stand').value, balls: parseInt(document.getElementById('balls').value), strikes: parseInt(document.getElementById('strikes').value), at_bat_pitch_number: parseInt( document.getElementById('at_bat_pitch_number').value ), on_1b: document.getElementById('on_1b').checked ? 1 : 0, on_2b: document.getElementById('on_2b').checked ? 1 : 0, on_3b: document.getElementById('on_3b').checked ? 1 : 0, prev1_pitch: document.getElementById('prev1_pitch').value, prev2_pitch: document.getElementById('prev2_pitch').value }; try { const response = await fetch('/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const result = await response.json(); if (result.status === 'success') { /* -------------------------------- 1. 코스 확률 렌더링 -------------------------------- */ const zones = result.zones; const maxProb = Math.max(...Object.values(zones)); for (const [zoneId, prob] of Object.entries(zones)) { const el = document.getElementById(zoneId); if (el) { el.innerText = `${prob}%`; if (prob > 0 && maxProb > 0) { const alpha = (prob / maxProb) * 0.85; el.style.backgroundColor = `rgba(255, 69, 58, ${alpha})`; if (alpha > 0.45) { el.style.color = '#ffffff'; } else { el.style.color = '#000000'; } } else { el.style.backgroundColor = 'transparent'; el.style.color = '#000000'; } } } /* -------------------------------- 2. 구종 확률 게이지 -------------------------------- */ const predictionsDiv = document.getElementById('pitch-predictions'); predictionsDiv.innerHTML = ''; result.predictions.forEach(p => { const item = document.createElement('div'); item.className = 'pitch-item'; item.innerHTML = ` <span class="pitch-name">${p.pitch}</span> <div class="gauge-bg"> <div class="gauge-fill" style="width: ${p.prob}%;" ></div> </div> <span class="pitch-prob">${p.prob}%</span> `; predictionsDiv.appendChild(item); }); /* -------------------------------- 3. 정확도 정보 -------------------------------- */ document.getElementById('accuracy-info').innerText = `구종 Top-1 정확도: ${result.accuracy}% | ` + `Top-2 정확도: ${result.top2_accuracy}% | ` + `코스 정확도: ${result.zone_accuracy}% ` + `(기존 베이스라인: ${result.baseline_acc}%)`; } else { alert('오류: ' + result.message); } } catch (error) { console.error('API 통신 에러:', error); alert('예측 서버와 통신 중 에러가 발생했습니다.'); } } </script>
+    const payload = {
+        pitcher_id: document.getElementById('pitcher_id').value,
+        stand: document.getElementById('stand').value,
+        balls: parseInt(document.getElementById('balls').value),
+        strikes: parseInt(document.getElementById('strikes').value),
+        at_bat_pitch_number: parseInt(document.getElementById('at_bat_pitch_number').value),
+        on_1b: document.getElementById('on_1b').checked ? 1 : 0,
+        on_2b: document.getElementById('on_2b').checked ? 1 : 0,
+        on_3b: document.getElementById('on_3b').checked ? 1 : 0,
+        prev1_pitch: document.getElementById('prev1_pitch').value,
+        prev2_pitch: document.getElementById('prev2_pitch').value
+    };
 
-</body> 
+    try {
+        const response = await fetch('/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            /* -------------------------------- 
+               1. 코스 확률 렌더링 
+            -------------------------------- */
+            const zones = result.zones;
+            const maxProb = Math.max(...Object.values(zones));
+
+            for (const [zoneId, prob] of Object.entries(zones)) {
+                const el = document.getElementById(zoneId);
+                if (el) {
+                    el.innerText = `${prob}%`;
+                    if (prob > 0 && maxProb > 0) {
+                        const alpha = (prob / maxProb) * 0.85;
+                        el.style.backgroundColor = `rgba(255, 69, 58, ${alpha})`;
+                        if (alpha > 0.45) {
+                            el.style.color = '#ffffff';
+                        } else {
+                            el.style.color = '#000000';
+                        }
+                    } else {
+                        el.style.backgroundColor = 'transparent';
+                        el.style.color = '#000000';
+                    }
+                }
+            }
+
+            /* -------------------------------- 
+               2. 구종 확률 게이지 
+            -------------------------------- */
+            const predictionsDiv = document.getElementById('pitch-predictions');
+            predictionsDiv.innerHTML = '';
+            
+            result.predictions.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'pitch-item';
+                item.innerHTML = `
+                    <span class="pitch-name">${p.pitch}</span>
+                    <div class="gauge-bg">
+                        <div class="gauge-fill" style="width: ${p.prob}%;"></div>
+                    </div>
+                    <span class="pitch-prob">${p.prob}%</span>
+                `;
+                predictionsDiv.appendChild(item);
+            });
+
+            /* -------------------------------- 
+               3. 정확도 정보 
+            -------------------------------- */
+            document.getElementById('accuracy-info').innerText = 
+                `구종 Top-1 정확도: ${result.accuracy}% | ` +
+                `Top-2 정확도: ${result.top2_accuracy}% | ` +
+                `코스 정확도: ${result.zone_accuracy}% ` +
+                `(기존 베이스라인: ${result.baseline_acc}%)`;
+
+        } else {
+            alert('오류: ' + result.message);
+        }
+
+    } catch (error) {
+        console.error('API 통신 에러:', error);
+        alert('예측 서버와 통신 중 에러가 발생했습니다.');
+    } finally {
+        loadingEl.style.display = 'none'; // 성공하든 실패하든 로딩 종료 (메시지 숨김)
+    }
+}
+</script>
+
+</body>
 </html>
