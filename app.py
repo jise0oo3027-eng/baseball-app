@@ -210,7 +210,7 @@ def train_and_save_models(pitcher_id):
         df['score_diff'] = 0
 
     # ========================================================
-    # 12. 필요한 컬럼
+    # 12. 필요한 컬럼 (pitch_number 제거 완료)
     # ========================================================
     req_cols = [
         'pitch_type',
@@ -218,7 +218,6 @@ def train_and_save_models(pitcher_id):
         'stand',
         'balls',
         'strikes',
-        'pitch_number',
         'inning',
         'score_diff',
         'game_pitch_count',
@@ -396,11 +395,10 @@ def predict():
     try:
         data = request.get_json()
 
-        # 기본 입력
+        # 기본 입력 (pitch_number 제거 완료)
         p_id = str(data.get('pitcher_id')).strip()
         balls = int(data.get('balls', 0))
         strikes = int(data.get('strikes', 0))
-        pitch_number = int(data.get('at_bat_pitch_number', 1))
 
         # 경기 상황
         inning = int(data.get('inning', 1))
@@ -441,11 +439,10 @@ def predict():
         cols = model_data['columns']
         input_df = pd.DataFrame(0, index=[0], columns=cols)
 
-        # 수치형 변수 매핑
+        # 수치형 변수 매핑 (pitch_number 제거 완료)
         numeric_features = [
             ('balls', balls),
             ('strikes', strikes),
-            ('pitch_number', pitch_number),
             ('inning', inning),
             ('score_diff', score_diff),
             ('game_pitch_count', game_pitch_count),
