@@ -2,46 +2,20 @@ import os
 import joblib
 import pandas as pd
 import numpy as np
-
 from flask import Flask, render_template, request, jsonify
 from pybaseball import statcast_pitcher
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score
-
 
 app = Flask(__name__)
 
 MODEL_DIR = 'models'
 os.makedirs(MODEL_DIR, exist_ok=True)
 
+PITCH_TYPES = ['FF', 'SL', 'CH', 'CU', 'KC', 'SI', 'FS', 'FC']
 
-# ============================================================
-# 구종 설정
-# ST(Sweeper)는 SL(Slider)로 통합
-# ============================================================
-PITCH_TYPES = [
-    'FF',
-    'SL',
-    'CH',
-    'CU',
-    'KC',
-    'SI',
-    'FS',
-    'FC'
-]
-
-
-# ============================================================
-# MLB Statcast 공식 Zone
-# 1~9  : Strike Zone 3x3
-# 11~14: Chase Zone 4분할
-# ============================================================
 ALL_ZONES = list(range(1, 10)) + [11, 12, 13, 14]
 
-
-# ============================================================
-# Zone 표시용 이름
-# ============================================================
 ZONE_NAMES = {
     1: 'SZ_1',
     2: 'SZ_2',
@@ -59,25 +33,12 @@ ZONE_NAMES = {
 }
 
 
-# ============================================================
-# Feature Importance
-# ============================================================
 def extract_top_features(model, columns, top_n=10):
     importances = model.feature_importances_
     ranked = sorted(zip(columns, importances), key=lambda x: x[1], reverse=True)[:top_n]
-
-    return [
-        {
-            'feature': name,
-            'importance': round(float(score), 4)
-        }
-        for name, score in ranked
-    ]
+    return [{'feature': name, 'importance': round(float(score), 4)} for name, score in ranked]
 
 
-# ============================================================
-# 모델 학습
-# ============================================================
 def train_and_save_models(pitcher_id):
     start_date = '2025-01-01'
     end_date = '2026-08-31'
@@ -91,103 +52,51 @@ def train_and_save_models(pitcher_id):
     if df is None or df.empty:
         return None
 
-    # ========================================================
-    # 1. 정규시즌만 사용
-    # ========================================================
     if 'game_type' in df.columns:
         df = df[df['game_type'] == 'R'].copy()
 
     if df.empty:
         return None
 
-    # ========================================================
-    # 2. 시간순 정렬
-    # ========================================================
-    df = df.sort_values([
-        'game_date',
-        'game_pk',
-        'at_bat_number',
-        'pitch_number'
-    ]).reset_index(drop=True)
+    df = df.sort_values(['game_date', 'game_pk', 'at_bat_number', 'pitch_number']).reset_index(drop=True)
 
-    # ========================================================
-    # 3. ST → SL
-    # ========================================================
     df['pitch_type'] = df['pitch_type'].replace('ST', 'SL')
 
-    # ========================================================
-    # 4. 이전 구종
-    # 필터링 전에 생성
-    # ========================================================
-    df['prev1_pitch'] = (
-        df.groupby(['game_pk', 'at_bat_number'])['pitch_type']
-        .shift(1)
-        .fillna('FIRST')
-    )
+    df['prev1_pitch'] = df.groupby(['game_pk', 'at_bat_number'])['pitch_type'].shift(1).fillna('FIRST')
+    df['prev2_pitch'] = df.groupby(['game_pk', 'at_bat_number'])['pitch_type'].shift(2).fillna('FIRST')
 
-    df['prev2_pitch'] = (
-        df.groupby(['game_pk', 'at_bat_number'])['pitch_type']
-        .shift(2)
-        .fillna('FIRST')
-    )
-
-    # ========================================================
-    # 5. 모델링 대상 구종
-    # ========================================================
     df = df[df['pitch_type'].isin(PITCH_TYPES)].copy()
 
     if df.empty:
         return None
 
-    # ========================================================
-    # 6. 공식 Statcast Zone 사용
-    # 1~9 + 11~14
-    # ========================================================
     df['zone_target'] = pd.to_numeric(df['zone'], errors='coerce')
-
     df = df[df['zone_target'].isin(ALL_ZONES)].copy()
 
     if df.empty:
         return None
 
-    # ========================================================
-    # 7. 주자 상황
-    # ========================================================
     for col in ['on_1b', 'on_2b', 'on_3b']:
         if col in df.columns:
             df[col] = df[col].notna().astype(int)
         else:
             df[col] = 0
 
-    # ========================================================
-    # 8. 아웃 카운트
-    # ========================================================
     if 'outs_when_up' in df.columns:
         df['outs'] = df['outs_when_up'].fillna(0)
     else:
         df['outs'] = 0
 
-    # ========================================================
-    # 9. 이닝
-    # ========================================================
     if 'inning' in df.columns:
         df['inning'] = df['inning'].fillna(0)
     else:
         df['inning'] = 0
 
-    # ========================================================
-    # 10. 경기 투구 수
-    # ========================================================
     df['game_pitch_count'] = df.groupby('game_pk').cumcount()
 
-    # ========================================================
-    # 11. 점수 차
-    # 투수팀 기준
-    # ========================================================
     if all(col in df.columns for col in ['home_score', 'away_score', 'inning_topbot']):
         df['home_score'] = df['home_score'].fillna(0)
         df['away_score'] = df['away_score'].fillna(0)
-
         df['score_diff'] = np.where(
             df['inning_topbot'].str.lower().eq('top'),
             df['away_score'] - df['home_score'],
@@ -196,9 +105,6 @@ def train_and_save_models(pitcher_id):
     else:
         df['score_diff'] = 0
 
-    # ========================================================
-    # 12. 필요한 컬럼
-    # ========================================================
     req_cols = [
         'pitch_type',
         'zone_target',
@@ -221,17 +127,8 @@ def train_and_save_models(pitcher_id):
             print(f"필요 컬럼 없음: {col}")
             return None
 
-    # ========================================================
-    # 13. 핵심 결측치만 제거
-    # pitch_type / zone_target / stand
-    # ========================================================
-    df = df.dropna(
-        subset=['pitch_type', 'zone_target', 'stand']
-    ).copy()
+    df = df.dropna(subset=['pitch_type', 'zone_target', 'stand']).copy()
 
-    # ========================================================
-    # 나머지 결측치는 수치형 기준으로 보정
-    # ========================================================
     numeric_cols = [
         'balls',
         'strikes',
@@ -253,34 +150,29 @@ def train_and_save_models(pitcher_id):
         print(f"데이터 부족: {len(df)} pitches")
         return None
 
-    # ========================================================
-    # 14. One-Hot Encoding
-    # ========================================================
     df_encoded = pd.get_dummies(
         df,
-        columns=[
-            'stand',
-            'prev1_pitch',
-            'prev2_pitch'
-        ]
+        columns=['stand', 'prev1_pitch', 'prev2_pitch']
     )
 
-    # ========================================================
-    # 15. 입력 / 출력
-    # ========================================================
+    # game_date와 game_pk는 정렬/분할용이지 모델 입력값이 아님
     X = df_encoded.drop(
-        columns=['pitch_type', 'zone_target']
+        columns=['pitch_type', 'zone_target', 'game_date', 'game_pk'],
+        errors='ignore'
     )
 
     y_pitch = df_encoded['pitch_type']
     y_zone = df_encoded['zone_target'].astype(int)
 
-    # ========================================================
-    # 16. 경기 단위 시간순 80:20 분할
-    # ========================================================
     games = df['game_pk'].drop_duplicates().tolist()
 
+    if len(games) < 2:
+        print("경기 수가 부족합니다.")
+        return None
+
     split_game_idx = int(len(games) * 0.8)
+
+    split_game_idx = max(1, min(split_game_idx, len(games) - 1))
 
     train_games = set(games[:split_game_idx])
     test_games = set(games[split_game_idx:])
@@ -301,9 +193,6 @@ def train_and_save_models(pitcher_id):
         print("Train/Test 데이터가 부족합니다.")
         return None
 
-    # ========================================================
-    # 17. 구종 예측 모델
-    # ========================================================
     clf_pitch = RandomForestClassifier(
         n_estimators=300,
         max_depth=10,
@@ -314,11 +203,6 @@ def train_and_save_models(pitcher_id):
 
     clf_pitch.fit(X_train, y_pitch_train)
 
-    # ========================================================
-    # 18. 구종별 코스 모델
-    #
-    # 각각 P(zone | pitch, 상황)을 학습
-    # ========================================================
     zone_models = {}
 
     for pitch in PITCH_TYPES:
@@ -346,9 +230,6 @@ def train_and_save_models(pitcher_id):
         zone_model.fit(X_pitch, y_zone_pitch)
         zone_models[pitch] = zone_model
 
-    # ========================================================
-    # 19. 구종 Top-1
-    # ========================================================
     pitch_preds = clf_pitch.predict(X_test)
 
     pitch_accuracy = round(
@@ -356,16 +237,10 @@ def train_and_save_models(pitcher_id):
         1
     )
 
-    # ========================================================
-    # 20. 구종 Top-2
-    # ========================================================
     pitch_probs_test = clf_pitch.predict_proba(X_test)
     pitch_classes = clf_pitch.classes_
 
-    top2_indices = np.argsort(
-        pitch_probs_test,
-        axis=1
-    )[:, -2:]
+    top2_indices = np.argsort(pitch_probs_test, axis=1)[:, -2:]
 
     top2_correct = sum(
         1
@@ -378,9 +253,6 @@ def train_and_save_models(pitcher_id):
         1
     )
 
-    # ========================================================
-    # 21. 구종 Macro F1
-    # ========================================================
     pitch_macro_f1 = round(
         f1_score(
             y_pitch_test,
@@ -391,20 +263,12 @@ def train_and_save_models(pitcher_id):
         1
     )
 
-    # ========================================================
-    # 22. 코스 예측
-    #
-    # P(zone) = Σ P(pitch) × P(zone | pitch)
-    # ========================================================
     combined_zone_probs = np.zeros(
         (len(X_test), len(ALL_ZONES)),
         dtype=float
     )
 
-    zone_index = {
-        zone: idx
-        for idx, zone in enumerate(ALL_ZONES)
-    }
+    zone_index = {zone: idx for idx, zone in enumerate(ALL_ZONES)}
 
     for pitch_idx, pitch in enumerate(pitch_classes):
         if pitch not in zone_models:
@@ -413,25 +277,16 @@ def train_and_save_models(pitcher_id):
         pitch_probability = pitch_probs_test[:, pitch_idx]
 
         zone_model = zone_models[pitch]
+
         zone_probs = zone_model.predict_proba(X_test)
 
         for class_idx, zone_class in enumerate(zone_model.classes_):
             if zone_class in zone_index:
-                combined_zone_probs[
-                    :,
-                    zone_index[zone_class]
-                ] += (
-                    pitch_probability *
-                    zone_probs[:, class_idx]
+                combined_zone_probs[:, zone_index[zone_class]] += (
+                    pitch_probability * zone_probs[:, class_idx]
                 )
 
-    # ========================================================
-    # 23. 코스 Top-1
-    # ========================================================
-    zone_pred_indices = np.argmax(
-        combined_zone_probs,
-        axis=1
-    )
+    zone_pred_indices = np.argmax(combined_zone_probs, axis=1)
 
     zone_preds = np.array([
         ALL_ZONES[idx]
@@ -443,9 +298,6 @@ def train_and_save_models(pitcher_id):
         1
     )
 
-    # ========================================================
-    # 24. 코스 Macro F1
-    # ========================================================
     zone_macro_f1 = round(
         f1_score(
             y_zone_test,
@@ -457,9 +309,6 @@ def train_and_save_models(pitcher_id):
         1
     )
 
-    # ========================================================
-    # 25. 최빈구종 Baseline
-    # ========================================================
     baseline_pitch = y_pitch_train.mode()[0]
 
     baseline_acc = round(
@@ -467,18 +316,12 @@ def train_and_save_models(pitcher_id):
         1
     )
 
-    # ========================================================
-    # 26. Feature Importance
-    # ========================================================
     pitch_feature_importance = extract_top_features(
         clf_pitch,
         X.columns,
         top_n=10
     )
 
-    # ========================================================
-    # 27. 모델 저장
-    # ========================================================
     model_data = {
         'pitch_model': clf_pitch,
         'zone_models': zone_models,
@@ -492,13 +335,11 @@ def train_and_save_models(pitcher_id):
         'baseline_pitch': baseline_pitch,
         'pitch_types': PITCH_TYPES,
         'all_zones': ALL_ZONES,
-        'zone_names': ZONE_NAMES
+        'zone_names': ZONE_NAMES,
+        'feature_importance': pitch_feature_importance
     }
 
-    model_path = os.path.join(
-        MODEL_DIR,
-        f'{pitcher_id}.pkl'
-    )
+    model_path = os.path.join(MODEL_DIR, f'{pitcher_id}.pkl')
 
     joblib.dump(
         model_data,
@@ -506,9 +347,6 @@ def train_and_save_models(pitcher_id):
         compress=3
     )
 
-    # ========================================================
-    # 28. 결과 출력
-    # ========================================================
     print("\n===== 모델 학습 완료 =====")
     print(
         f"투수 ID: {pitcher_id} | "
@@ -524,24 +362,18 @@ def train_and_save_models(pitcher_id):
     )
 
     print(
-        f"Pitch Macro F1: {pitch_macro_f1} | "
-        f"Zone Macro F1: {zone_macro_f1}"
+        f"Pitch Macro F1: {pitch_macro_f1}% | "
+        f"Zone Macro F1: {zone_macro_f1}%"
     )
 
     return model_data
 
 
-# ============================================================
-# 메인 페이지
-# ============================================================
 @app.route('/')
 def home():
     return render_template('index.html')
 
 
-# ============================================================
-# 예측 API
-# ============================================================
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
@@ -565,16 +397,12 @@ def predict():
         prev1_pitch = data.get('prev1_pitch', 'FIRST')
         prev2_pitch = data.get('prev2_pitch', 'FIRST')
 
-        # ST → SL
         if prev1_pitch == 'ST':
             prev1_pitch = 'SL'
 
         if prev2_pitch == 'ST':
             prev2_pitch = 'SL'
 
-        # ====================================================
-        # 모델 불러오기 또는 학습
-        # ====================================================
         model_path = os.path.join(
             MODEL_DIR,
             f'{p_id}.pkl'
@@ -591,9 +419,6 @@ def predict():
                 'message': '데이터가 부족하거나 수집에 실패했습니다.'
             }), 400
 
-        # ====================================================
-        # 입력 DataFrame
-        # ====================================================
         cols = model_data['columns']
 
         input_df = pd.DataFrame(
@@ -628,15 +453,9 @@ def predict():
             if col_name in input_df.columns:
                 input_df.at[0, col_name] = 1
 
-        # ====================================================
-        # 모델
-        # ====================================================
         clf_pitch = model_data['pitch_model']
         zone_models = model_data['zone_models']
 
-        # ====================================================
-        # 1. 구종 확률
-        # ====================================================
         pitch_probs = clf_pitch.predict_proba(input_df)[0]
         pitch_classes = clf_pitch.classes_
 
@@ -656,9 +475,6 @@ def predict():
             reverse=True
         )
 
-        # ====================================================
-        # 2. P(zone) = Σ P(pitch) × P(zone|pitch)
-        # ====================================================
         all_zones = model_data['all_zones']
 
         zone_map = {
@@ -694,9 +510,6 @@ def predict():
                         pitch_probability * zone_prob
                     )
 
-        # ====================================================
-        # 확률을 %로 변환
-        # ====================================================
         total_zone_probability = sum(
             zone_probability_raw.values()
         )
@@ -711,9 +524,6 @@ def predict():
                 1
             )
 
-        # ====================================================
-        # 결과
-        # ====================================================
         return jsonify({
             'status': 'success',
             'predictions': predictions,
@@ -735,9 +545,6 @@ def predict():
         }), 500
 
 
-# ============================================================
-# 실행
-# ============================================================
 if __name__ == '__main__':
     app.run(
         host='0.0.0.0',
