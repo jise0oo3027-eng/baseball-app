@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 from flask import Flask, render_template, request, jsonify
-from pybaseball import statcast_pitcher
+from pybaseball import statcast_pitcher, playerid_lookup
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 
@@ -220,6 +220,48 @@ def train_and_save_models(pitcher_id):
 @app.route('/')
 def home():
     return render_template('index.html')
+
+
+# ============================================================
+# 선수 이름 검색 API
+# ============================================================
+@app.route('/search_pitcher', methods=['POST'])
+def search_pitcher():
+    try:
+        data = request.get_json()
+        query = data.get('query', '').strip()
+        
+        if not query:
+            return jsonify({'status': 'error', 'message': '선수 이름을 입력해주세요.'}), 400
+
+        parts = query.split()
+        if len(parts) >= 2:
+            first = parts[0]
+            last = " ".join(parts[1:])
+        else:
+            first = ''
+            last = parts[0]
+
+        # pybaseball을 이용한 선수 검색
+        df_lookup = playerid_lookup(last, first, fuzzy=True)
+        if df_lookup.empty:
+            df_lookup = playerid_lookup(query, fuzzy=True)
+
+        if df_lookup.empty:
+            return jsonify({'status': 'error', 'message': '일치하는 선수를 찾을 수 없습니다.'}), 404
+
+        results = []
+        for _, row in df_lookup.head(5).iterrows():
+            if pd.notna(row.get('key_mlbam')):
+                results.append({
+                    'id': int(row['key_mlbam']),
+                    'name': f"{row.get('name_first', '')} {row.get('name_last', '')}".strip()
+                })
+
+        return jsonify({'status': 'success', 'results': results})
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 # ============================================================
