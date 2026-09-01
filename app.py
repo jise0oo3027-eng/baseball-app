@@ -5,7 +5,7 @@ import numpy as np
 
 from flask import Flask, render_template, request, jsonify
 from pybaseball import statcast_pitcher
-from sklearn.ensemble import RandomForestClassifier
+from lightgbm import LGBMClassifier
 from sklearn.metrics import accuracy_score
 
 
@@ -72,7 +72,7 @@ def categorize_zone_dynamic(row):
 
 
 # ============================================================
-# 모델 학습
+# 모델 학습 (LightGBM 적용 및 누적 투구 수 추가)
 # ============================================================
 def train_and_save_models(pitcher_id):
     start_date = '2023-01-01'
@@ -99,6 +99,9 @@ def train_and_save_models(pitcher_id):
         'game_date', 'game_pk', 'at_bat_number', 'pitch_number'
     ]).reset_index(drop=True)
 
+    # 2-1. [추가] 경기 내 실제 누적 투구 수 계산
+    df['game_pitch_number'] = df.groupby('game_pk').cumcount() + 1
+
     # 3. ST → SL 통합
     if 'pitch_type' in df.columns:
         df['pitch_type'] = df['pitch_type'].replace('ST', 'SL')
@@ -116,17 +119,17 @@ def train_and_save_models(pitcher_id):
     # 6. 동적 스트라이크존 생성
     df['zone_target'] = df.apply(categorize_zone_dynamic, axis=1)
 
-    # 7. 주자 상황 전처리 (아웃 카운트 부분 제거)
+    # 7. 주자 상황 전처리
     for col in ['on_1b', 'on_2b', 'on_3b']:
         if col in df.columns:
             df[col] = df[col].notnull().astype(int)
         else:
             df[col] = 0
 
-    # 8. 필요한 컬럼만 사용 (outs_when_up 제거)
+    # 8. 필요한 컬럼에 'game_pitch_number' 포함
     req_cols = [
         'pitch_type', 'zone_target', 'stand',
-        'balls', 'strikes', 'pitch_number',
+        'balls', 'strikes', 'pitch_number', 'game_pitch_number',
         'on_1b', 'on_2b', 'on_3b',
         'prev1_pitch', 'prev2_pitch'
     ]
@@ -155,15 +158,15 @@ def train_and_save_models(pitcher_id):
     y_zone_train = y_zone.iloc[:split_idx]
     y_zone_test = y_zone.iloc[split_idx:]
 
-    # 12. 구종 예측 Random Forest
-    clf_pitch = RandomForestClassifier(
-        n_estimators=200, max_depth=10, random_state=42, n_jobs=-1
+    # 12. 구종 예측 LightGBM 모델
+    clf_pitch = LGBMClassifier(
+        n_estimators=200, max_depth=10, random_state=42, n_jobs=-1, verbose=-1
     )
     clf_pitch.fit(X_train, y_pitch_train)
 
-    # 13. 코스 예측 Random Forest
-    clf_zone = RandomForestClassifier(
-        n_estimators=200, max_depth=10, random_state=42, n_jobs=-1
+    # 13. 코스 예측 LightGBM 모델
+    clf_zone = LGBMClassifier(
+        n_estimators=200, max_depth=10, random_state=42, n_jobs=-1, verbose=-1
     )
     clf_zone.fit(X_train, y_zone_train)
 
@@ -207,7 +210,7 @@ def train_and_save_models(pitcher_id):
     model_path = os.path.join(MODEL_DIR, f'{pitcher_id}.pkl')
     joblib.dump(model_data, model_path, compress=3)
 
-    print(f"\n===== 모델 학습 완료 =====")
+    print(f"\n===== 모델 학습 완료 (LightGBM) =====")
     print(f"투수 ID: {pitcher_id} | 데이터 수: {len(df)}")
     print(f"Baseline: {baseline_acc}% | Top-1: {pitch_accuracy}% | Top-2: {top2_accuracy}% | Zone: {zone_accuracy}%")
 
@@ -264,10 +267,11 @@ def predict():
         cols = model_data['columns']
         input_df = pd.DataFrame(0, index=[0], columns=cols)
 
-        # 수치형 변수 매핑 (outs_when_up 제거)
+        # 수치형 변수 매핑 (game_pitch_number는 임의 중간값 50구 설정 또는 프론트 연동 가능)
         for col, val in [
             ('balls', balls), ('strikes', strikes),
-            ('pitch_number', pitch_number), ('on_1b', on_1b), ('on_2b', on_2b), ('on_3b', on_3b)
+            ('pitch_number', pitch_number), ('game_pitch_number', 50),
+            ('on_1b', on_1b), ('on_2b', on_2b), ('on_3b', on_3b)
         ]:
             if col in input_df.columns:
                 input_df.at[0, col] = val
