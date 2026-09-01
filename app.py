@@ -76,7 +76,7 @@ def categorize_zone_dynamic(row):
 # ============================================================
 def train_and_save_models(pitcher_id):
     start_date = '2023-01-01'
-    end_date = '2026-8-31'
+    end_date = '2026-08-31'
 
     try:
         df = statcast_pitcher(start_date, end_date, int(pitcher_id))
@@ -116,22 +116,17 @@ def train_and_save_models(pitcher_id):
     # 6. 동적 스트라이크존 생성
     df['zone_target'] = df.apply(categorize_zone_dynamic, axis=1)
 
-    # 7. 주자 상황 및 아웃 카운트 전처리
+    # 7. 주자 상황 전처리 (아웃 카운트 부분 제거)
     for col in ['on_1b', 'on_2b', 'on_3b']:
         if col in df.columns:
             df[col] = df[col].notnull().astype(int)
         else:
             df[col] = 0
 
-    if 'outs_when_up' in df.columns:
-        df['outs_when_up'] = df['outs_when_up'].fillna(0).astype(int)
-    else:
-        df['outs_when_up'] = 0
-
-    # 8. 필요한 컬럼만 사용
+    # 8. 필요한 컬럼만 사용 (outs_when_up 제거)
     req_cols = [
         'pitch_type', 'zone_target', 'stand',
-        'balls', 'strikes', 'outs_when_up', 'pitch_number',
+        'balls', 'strikes', 'pitch_number',
         'on_1b', 'on_2b', 'on_3b',
         'prev1_pitch', 'prev2_pitch'
     ]
@@ -238,7 +233,6 @@ def predict():
         p_id = str(data.get('pitcher_id')).strip()
         balls = int(data.get('balls', 0))
         strikes = int(data.get('strikes', 0))
-        outs_when_up = int(data.get('outs_when_up', 0))
         pitch_number = int(data.get('at_bat_pitch_number', 1))
         on_1b = int(data.get('on_1b', 0))
         on_2b = int(data.get('on_2b', 0))
@@ -270,9 +264,9 @@ def predict():
         cols = model_data['columns']
         input_df = pd.DataFrame(0, index=[0], columns=cols)
 
-        # 수치형 변수 매핑
+        # 수치형 변수 매핑 (outs_when_up 제거)
         for col, val in [
-            ('balls', balls), ('strikes', strikes), ('outs_when_up', outs_when_up),
+            ('balls', balls), ('strikes', strikes),
             ('pitch_number', pitch_number), ('on_1b', on_1b), ('on_2b', on_2b), ('on_3b', on_3b)
         ]:
             if col in input_df.columns:
