@@ -22,9 +22,10 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 # ============================================================
 PITCH_TYPES = [
     'FF',   # Four-Seam Fastball
-    'SL',   # Slider + Sweeper(ST)
+    'SL',   # Slider
     'CH',   # Changeup
     'CU',   # Curveball
+    'KC',   # Knuckle Curve
     'SI',   # Sinker
     'FS',   # Splitter
     'FC'    # Cutter
