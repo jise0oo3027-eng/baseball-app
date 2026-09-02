@@ -596,8 +596,8 @@
     <div class="form-group">
 
         <div class="form-row">
-            <label for="pitcher\_id">선수 ID (MLB):</label>
-            <input type="text" id="pitcher\_id" value="694973" placeholder="예: 694973">
+            <label for="pitcher_id">선수 ID (MLB):</label>
+            <input type="text" id="pitcher_id" value="694973" placeholder="예: 694973">
         </div>
 
         <div class="form-row">
@@ -614,8 +614,8 @@
         </div>
 
         <div class="form-row">
-            <label for="score\_diff">점수 차:</label>
-            <input type="number" id="score\_diff" value="0" min="-20" max="20">
+            <label for="score_diff">점수 차:</label>
+            <input type="number" id="score_diff" value="0" min="-20" max="20">
         </div>
 
         <div class="input-help">
@@ -623,8 +623,8 @@
         </div>
 
         <div class="form-row">
-            <label for="game\_pitch\_count">경기 투구 수:</label>
-            <input type="number" id="game\_pitch\_count" value="0" min="0" max="200">
+            <label for="game_pitch_count">경기 투구 수:</label>
+            <input type="number" id="game_pitch_count" value="0" min="0" max="200">
         </div>
 
         <div class="input-help">
@@ -640,17 +640,17 @@
                     <div class="baseball-diamond">
 
                         <label class="base-item" id="pos-2b" title="2루주자">
-                            <input type="checkbox" id="on\_2b">
+                            <input type="checkbox" id="on_2b">
                             <div class="base-diamond"></div>
                         </label>
 
                         <label class="base-item" id="pos-3b" title="3루주자">
-                            <input type="checkbox" id="on\_3b">
+                            <input type="checkbox" id="on_3b">
                             <div class="base-diamond"></div>
                         </label>
 
                         <label class="base-item" id="pos-1b" title="1루주자">
-                            <input type="checkbox" id="on\_1b">
+                            <input type="checkbox" id="on_1b">
                             <div class="base-diamond"></div>
                         </label>
 
@@ -700,12 +700,12 @@
 
                 <div class="previous-pitch-item">
                     <strong>Prev1:</strong>
-                    <span id="prev1\_display">없음</span>
+                    <span id="prev1_display">없음</span>
                 </div>
 
                 <div class="previous-pitch-item">
                     <strong>Prev2:</strong>
-                    <span id="prev2\_display">없음</span>
+                    <span id="prev2_display">없음</span>
                 </div>
 
             </div>
@@ -726,7 +726,7 @@
                 🎯 이번 투구 구종 (결과 입력용)
             </div>
 
-            <select id="current\_pitch">
+            <select id="current_pitch">
                 <option value="">선택 안 함 (예측 후 자동 기록용)</option>
                 <option value="FF">포심 패스트볼 (FF)</option>
                 <option value="SL">슬라이더 (SL)</option>
@@ -756,17 +756,17 @@
 
     <div class="zone-wrapper">
 
-        <div id="CHASE\_UL" class="chase-zone">0%</div>
-        <div id="CHASE\_UR" class="chase-zone">0%</div>
-        <div id="CHASE\_LL" class="chase-zone">0%</div>
-        <div id="CHASE\_LR" class="chase-zone">0%</div>
+        <div id="CHASE_UL" class="chase-zone">0%</div>
+        <div id="CHASE_UR" class="chase-zone">0%</div>
+        <div id="CHASE_LL" class="chase-zone">0%</div>
+        <div id="CHASE_LR" class="chase-zone">0%</div>
 
         <div class="strike-box">
 
-            <div id="SZ\_UL" class="strike-zone">0%</div>
-            <div id="SZ\_UR" class="strike-zone">0%</div>
-            <div id="SZ\_LL" class="strike-zone">0%</div>
-            <div id="SZ\_LR" class="strike-zone">0%</div>
+            <div id="SZ_UL" class="strike-zone">0%</div>
+            <div id="SZ_UR" class="strike-zone">0%</div>
+            <div id="SZ_LL" class="strike-zone">0%</div>
+            <div id="SZ_LR" class="strike-zone">0%</div>
 
         </div>
     </div>
@@ -1060,9 +1060,9 @@
                         'accuracy-info'
                     ).innerText =
                         `구종 Top-1 정확도: ${result.accuracy}% | ` +
-                        `Top-2 정확도: ${result.top2\_accuracy}% | ` +
-                        `코스 정확도: ${result.zone\_accuracy}% ` +
-                        `(기존 베이스라인: ${result.baseline\_acc}%)`;
+                        `Top-2 정확도: ${result.top2_accuracy}% | ` +
+                        `코스 정확도: ${result.zone_accuracy}% ` +
+                        `(기존 베이스라인: ${result.baseline_acc}%)`;
 
                     if (currentPitch) {
                         recordPitch(currentPitch);
